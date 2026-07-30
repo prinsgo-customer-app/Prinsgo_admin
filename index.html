@@ -246,7 +246,7 @@ function showToast(msg) {
 }
 
 async function apiFetch(path, options = {}) {
-  const res = await fetch(`${API_BASE}/api${path}`, {
+  const res = await fetch(`${API_BASE}/api/admin${path}`, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
