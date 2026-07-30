@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "name": "PrinsGo Admin",
+    "slug": "prinsgo-admin-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": { "backgroundColor": "#0A0F24" },
+    "assetBundlePatterns": ["**/*"],
+    "android": { "package": "com.prinsgo.admin" }
+  }
+}
