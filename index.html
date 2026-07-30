@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>PrinsGo Admin</title>
+<style>
+  :root {
+    --navy: #0A0F24;
+    --navy-light: #131a3a;
+    --blue: #1877F2;
+    --blue-dim: #0f5bc4;
+    --bg: #F5F6FA;
+    --card: #ffffff;
+    --border: #E4E7EF;
+    --text: #1A1D29;
+    --text-dim: #6B7280;
+    --green: #16A34A;
+    --amber: #D97706;
+    --red: #DC2626;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+  #login-screen {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--navy);
+  }
+  .login-card {
+    background: var(--card);
+    border-radius: 16px;
+    padding: 40px 32px;
+    width: 100%;
+    max-width: 380px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  }
+  .logo { font-size: 28px; font-weight: 800; color: var(--navy); text-align: center; margin-bottom: 4px; }
+  .logo span { color: var(--blue); }
+  .login-sub { text-align: center; color: var(--text-dim); font-size: 13px; margin-bottom: 28px; }
+  label { font-size: 13px; font-weight: 600; color: var(--text-dim); display: block; margin-bottom: 6px; margin-top: 16px; }
+  input {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 14px;
+    background: #fafafa;
+  }
+  input:focus { outline: 2px solid var(--blue); background: #fff; }
+  button {
+    cursor: pointer;
+    border: none;
+    font-family: inherit;
+  }
+  .btn-primary {
+    width: 100%;
+    background: var(--blue);
+    color: #fff;
+    padding: 13px;
+    border-radius: 8px;
+    font-weight: 700;
+    font-size: 14px;
+    margin-top: 24px;
+  }
+  .btn-primary:hover { background: var(--blue-dim); }
+  .error-text { color: var(--red); font-size: 13px; margin-top: 12px; text-align: center; }
+
+  #app { display: none; min-height: 100vh; }
+  .app-layout { display: flex; min-height: 100vh; }
+  .sidebar {
+    width: 220px;
+    background: var(--navy);
+    color: #fff;
+    padding: 24px 16px;
+    flex-shrink: 0;
+  }
+  .sidebar .logo { color: #fff; text-align: left; margin-bottom: 30px; }
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 11px 12px;
+    border-radius: 8px;
+    color: #b8bcd4;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    margin-bottom: 4px;
+  }
+  .nav-item:hover { background: rgba(255,255,255,0.06); color: #fff; }
+  .nav-item.active { background: var(--blue); color: #fff; }
+  .main { flex: 1; padding: 28px 32px; max-width: 1200px; }
+  .page-title { font-size: 22px; font-weight: 800; margin: 0 0 4px; }
+  .page-sub { color: var(--text-dim); font-size: 13px; margin: 0 0 24px; }
+
+  .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 28px; }
+  .stat-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; }
+  .stat-value { font-size: 26px; font-weight: 800; color: var(--navy); }
+  .stat-label { font-size: 12px; color: var(--text-dim); margin-top: 4px; }
+
+  .toolbar { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
+  .search-input { max-width: 280px; }
+  .filter-chip {
+    padding: 8px 14px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: #fff;
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+  .filter-chip.active { background: var(--navy); color: #fff; border-color: var(--navy); }
+
+  table { width: 100%; border-collapse: collapse; background: var(--card); border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border); }
+  th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-dim); padding: 12px 14px; border-bottom: 1px solid var(--border); background: #FAFBFD; }
+  td { padding: 13px 14px; border-bottom: 1px solid var(--border); font-size: 14px; vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  .badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; text-transform: capitalize; }
+  .badge-pending { background: #FEF3C7; color: var(--amber); }
+  .badge-approved { background: #DCFCE7; color: var(--green); }
+  .badge-rejected, .badge-blocked { background: #FEE2E2; color: var(--red); }
+  .row-actions { display: flex; gap: 6px; }
+  .action-btn {
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    border: 1px solid var(--border);
+    background: #fff;
+  }
+  .action-btn.approve { background: var(--green); color: #fff; border-color: var(--green); }
+  .action-btn.reject, .action-btn.block { background: var(--red); color: #fff; border-color: var(--red); }
+  .action-btn.unblock { background: var(--blue); color: #fff; border-color: var(--blue); }
+  .action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .empty-state { text-align: center; padding: 60px 20px; color: var(--text-dim); }
+  .loading { text-align: center; padding: 60px 20px; color: var(--text-dim); }
+  .pagination { display: flex; gap: 8px; justify-content: center; margin-top: 16px; }
+  .pagination button { padding: 6px 12px; border: 1px solid var(--border); background: #fff; border-radius: 6px; font-size: 13px; }
+  .pagination button:disabled { opacity: 0.4; }
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: var(--navy);
+    color: #fff;
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-size: 13px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+    opacity: 0;
+    transition: opacity 0.25s;
+    pointer-events: none;
+    z-index: 100;
+  }
+  .toast.show { opacity: 1; }
+  @media (max-width: 720px) {
+    .app-layout { flex-direction: column; }
+    .sidebar { width: 100%; display: flex; align-items: center; padding: 12px 16px; overflow-x: auto; }
+    .sidebar .logo { display: none; }
+    .nav-item { white-space: nowrap; margin-bottom: 0; }
+    .main { padding: 20px 16px; }
+    table { font-size: 12px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="login-screen">
+  <div class="login-card">
+    <div class="logo">Prins<span>Go</span></div>
+    <div class="login-sub">Admin Panel</div>
+    <label for="backend-url">Backend URL</label>
+    <input id="backend-url" type="text" placeholder="https://prinsgo-backend.onrender.com" />
+    <label for="admin-secret">Admin Secret</label>
+    <input id="admin-secret" type="password" placeholder="Your ADMIN_SECRET_KEY" />
+    <button class="btn-primary" onclick="login()">Sign in</button>
+    <div id="login-error" class="error-text"></div>
+  </div>
+</div>
+
+<div id="app">
+  <div class="app-layout">
+    <div class="sidebar">
+      <div class="logo">Prins<span style="color:#1877F2">Go</span></div>
+      <div class="nav-item active" data-page="dashboard" onclick="navigate('dashboard')">📊 Dashboard</div>
+      <div class="nav-item" data-page="drivers" onclick="navigate('drivers')">🚗 Drivers</div>
+      <div class="nav-item" data-page="customers" onclick="navigate('customers')">👤 Customers</div>
+      <div class="nav-item" onclick="logout()" style="margin-top: 20px; color: #ff8080;">↩ Sign out</div>
+    </div>
+    <div class="main">
+
+      <div id="page-dashboard">
+        <h1 class="page-title">Dashboard</h1>
+        <p class="page-sub">Live overview of PrinsGo operations</p>
+        <div id="stat-grid" class="stat-grid"><div class="loading">Loading stats…</div></div>
+      </div>
+
+      <div id="page-drivers" style="display:none">
+        <h1 class="page-title">Drivers</h1>
+        <p class="page-sub">Approve documents, manage driver accounts</p>
+        <div class="toolbar">
+          <input class="search-input" id="driver-search" placeholder="Search name, phone, vehicle number…" onkeyup="if(event.key==='Enter') loadDrivers(1)" />
+          <div class="filter-chip active" data-status="" onclick="setDriverFilter('')">All</div>
+          <div class="filter-chip" data-status="pending" onclick="setDriverFilter('pending')">Pending</div>
+          <div class="filter-chip" data-status="approved" onclick="setDriverFilter('approved')">Approved</div>
+          <div class="filter-chip" data-status="rejected" onclick="setDriverFilter('rejected')">Rejected</div>
+        </div>
+        <div id="drivers-table-wrap"><div class="loading">Loading drivers…</div></div>
+        <div class="pagination" id="drivers-pagination"></div>
+      </div>
+
+      <div id="page-customers" style="display:none">
+        <h1 class="page-title">Customers</h1>
+        <p class="page-sub">Search and manage customer accounts</p>
+        <div class="toolbar">
+          <input class="search-input" id="customer-search" placeholder="Search name or phone…" onkeyup="if(event.key==='Enter') loadCustomers(1)" />
+        </div>
+        <div id="customers-table-wrap"><div class="loading">Loading customers…</div></div>
+        <div class="pagination" id="customers-pagination"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+let API_BASE = '';
+let ADMIN_SECRET = '';
+let driverStatusFilter = '';
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2600);
+}
+
+async function apiFetch(path, options = {}) {
+  const res = await fetch(`${API_BASE}/api${path}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      'x-admin-secret': ADMIN_SECRET,
+      ...(options.headers || {}),
+    },
+  });
+  const data = await res.json();
+  if (!res.ok || data.success === false) {
+    throw new Error(data.message || `Request failed (${res.status})`);
+  }
+  return data;
+}
+
+function login() {
+  const url = document.getElementById('backend-url').value.trim().replace(/\/$/, '');
+  const secret = document.getElementById('admin-secret').value.trim();
+  const errEl = document.getElementById('login-error');
+  errEl.textContent = '';
+
+  if (!url || !secret) {
+    errEl.textContent = 'Enter both backend URL and admin secret.';
+    return;
+  }
+
+  API_BASE = url;
+  ADMIN_SECRET = secret;
+
+  apiFetch('/dashboard')
+    .then(() => {
+      localStorage.setItem('prinsgo_admin_url', url);
+      localStorage.setItem('prinsgo_admin_secret', secret);
+      document.getElementById('login-screen').style.display = 'none';
+      document.getElementById('app').style.display = 'block';
+      navigate('dashboard');
+    })
+    .catch((err) => {
+      errEl.textContent = err.message.includes('denied') ? 'Incorrect admin secret.' : err.message;
+    });
+}
+
+function logout() {
+  localStorage.removeItem('prinsgo_admin_url');
+  localStorage.removeItem('prinsgo_admin_secret');
+  location.reload();
+}
+
+function navigate(page) {
+  ['dashboard', 'drivers', 'customers'].forEach((p) => {
+    document.getElementById(`page-${p}`).style.display = p === page ? 'block' : 'none';
+  });
+  document.querySelectorAll('.nav-item[data-page]').forEach((el) => {
+    el.classList.toggle('active', el.dataset.page === page);
+  });
+  if (page === 'dashboard') loadDashboard();
+  if (page === 'drivers') loadDrivers(1);
+  if (page === 'customers') loadCustomers(1);
+}
+
+// ---------- Dashboard ----------
+async function loadDashboard() {
+  const grid = document.getElementById('stat-grid');
+  try {
+    const { stats } = await apiFetch('/dashboard');
+    const cards = [
+      ['Total Customers', stats.totalCustomers],
+      ['Total Drivers', stats.totalDrivers],
+      ['Pending Approvals', stats.pendingDriverApprovals],
+      ['Online Drivers', stats.onlineDrivers],
+      ['Active Rides', stats.activeRides],
+      ['Active Parcels', stats.activeParcels],
+      ['Rides Completed Today', stats.ridesCompletedToday],
+      ['Parcels Delivered Today', stats.parcelsDeliveredToday],
+      ['Revenue Today', `₹${Math.round(stats.revenueToday)}`],
+    ];
+    grid.innerHTML = cards.map(([label, value]) => `
+      <div class="stat-card">
+        <div class="stat-value">${value}</div>
+        <div class="stat-label">${label}</div>
+      </div>
+    `).join('');
+  } catch (err) {
+    grid.innerHTML = `<div class="empty-state">Couldn't load stats: ${err.message}</div>`;
+  }
+}
+
+// ---------- Drivers ----------
+function setDriverFilter(status) {
+  driverStatusFilter = status;
+  document.querySelectorAll('#page-drivers .filter-chip').forEach((el) => {
+    el.classList.toggle('active', el.dataset.status === status);
+  });
+  loadDrivers(1);
+}
+
+async function loadDrivers(page) {
+  const wrap = document.getElementById('drivers-table-wrap');
+  wrap.innerHTML = '<div class="loading">Loading drivers…</div>';
+  const search = document.getElementById('driver-search').value.trim();
+  try {
+    const params = new URLSearchParams({ page, limit: 15 });
+    if (search) params.set('search', search);
+    if (driverStatusFilter) params.set('status', driverStatusFilter);
+    const data = await apiFetch(`/drivers?${params.toString()}`);
+
+    if (!data.drivers.length) {
+      wrap.innerHTML = '<div class="empty-state">No drivers match this filter.</div>';
+      document.getElementById('drivers-pagination').innerHTML = '';
+      return;
+    }
+
+    wrap.innerHTML = `
+      <table>
+        <thead><tr>
+          <th>Name</th><th>Phone</th><th>Vehicle</th><th>Status</th><th>Online</th><th>Rating</th><th>Actions</th>
+        </tr></thead>
+        <tbody>
+          ${data.drivers.map((d) => `
+            <tr>
+              <td>${escapeHtml(d.name)}</td>
+              <td>${escapeHtml(d.phone)}</td>
+              <td>${escapeHtml(d.vehicleType)} · ${escapeHtml(d.vehicleNumber)}</td>
+              <td>
+                <span class="badge badge-${d.isBlocked ? 'blocked' : d.documentStatus}">${d.isBlocked ? 'Blocked' : d.documentStatus}</span>
+              </td>
+              <td>${d.isOnline ? '🟢' : '⚪'}</td>
+              <td>⭐ ${d.rating?.toFixed(1) ?? '5.0'}</td>
+              <td>
+                <div class="row-actions">
+                  ${!d.isBlocked && d.documentStatus !== 'approved' ? `<button class="action-btn approve" onclick="driverAction('${d._id}','approve')">Approve</button>` : ''}
+                  ${!d.isBlocked && d.documentStatus !== 'rejected' ? `<button class="action-btn reject" onclick="driverAction('${d._id}','reject')">Reject</button>` : ''}
+                  ${d.isBlocked
+                    ? `<button class="action-btn unblock" onclick="driverAction('${d._id}','unblock')">Unblock</button>`
+                    : `<button class="action-btn block" onclick="driverAction('${d._id}','block')">Block</button>`
+                  }
+                </div>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+    renderPagination('drivers-pagination', data.page, data.totalPages, loadDrivers);
+  } catch (err) {
+    wrap.innerHTML = `<div class="empty-state">Couldn't load drivers: ${err.message}</div>`;
+  }
+}
+
+async function driverAction(id, action) {
+  try {
+    await apiFetch(`/drivers/${id}/${action}`, { method: 'PUT' });
+    showToast(`Driver ${action}d successfully`);
+    loadDrivers(1);
+  } catch (err) {
+    showToast(`Failed: ${err.message}`);
+  }
+}
+
+// ---------- Customers ----------
+async function loadCustomers(page) {
+  const wrap = document.getElementById('customers-table-wrap');
+  wrap.innerHTML = '<div class="loading">Loading customers…</div>';
+  const search = document.getElementById('customer-search').value.trim();
+  try {
+    const params = new URLSearchParams({ page, limit: 15 });
+    if (search) params.set('search', search);
+    const data = await apiFetch(`/customers?${params.toString()}`);
+
+    if (!data.customers.length) {
+      wrap.innerHTML = '<div class="empty-state">No customers match this search.</div>';
+      document.getElementById('customers-pagination').innerHTML = '';
+      return;
+    }
+
+    wrap.innerHTML = `
+      <table>
+        <thead><tr>
+          <th>Name</th><th>Phone</th><th>Wallet</th><th>Status</th><th>Joined</th><th>Actions</th>
+        </tr></thead>
+        <tbody>
+          ${data.customers.map((c) => `
+            <tr>
+              <td>${escapeHtml(c.name)}</td>
+              <td>${escapeHtml(c.phone)}</td>
+              <td>₹${Math.round(c.walletBalance || 0)}</td>
+              <td><span class="badge ${c.isBlocked ? 'badge-blocked' : 'badge-approved'}">${c.isBlocked ? 'Blocked' : 'Active'}</span></td>
+              <td>${new Date(c.createdAt).toLocaleDateString()}</td>
+              <td>
+                ${c.isBlocked
+                  ? `<button class="action-btn unblock" onclick="customerAction('${c._id}','unblock')">Unblock</button>`
+                  : `<button class="action-btn block" onclick="customerAction('${c._id}','block')">Block</button>`
+                }
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+    renderPagination('customers-pagination', data.page, data.totalPages, loadCustomers);
+  } catch (err) {
+    wrap.innerHTML = `<div class="empty-state">Couldn't load customers: ${err.message}</div>`;
+  }
+}
+
+async function customerAction(id, action) {
+  try {
+    await apiFetch(`/customers/${id}/${action}`, { method: 'PUT' });
+    showToast(`Customer ${action}ed successfully`);
+    loadCustomers(1);
+  } catch (err) {
+    showToast(`Failed: ${err.message}`);
+  }
+}
+
+// ---------- Shared helpers ----------
+function renderPagination(elId, page, totalPages, loader) {
+  const el = document.getElementById(elId);
+  if (totalPages <= 1) { el.innerHTML = ''; return; }
+  el.innerHTML = `
+    <button ${page <= 1 ? 'disabled' : ''} onclick="(${loader.name})(${page - 1})">Prev</button>
+    <button disabled>${page} / ${totalPages}</button>
+    <button ${page >= totalPages ? 'disabled' : ''} onclick="(${loader.name})(${page + 1})">Next</button>
+  `;
+}
+
+function escapeHtml(str) {
+  if (str === undefined || str === null) return '';
+  return String(str).replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  }[c]));
+}
+
+// ---------- Boot ----------
+(function boot() {
+  const savedUrl = localStorage.getItem('prinsgo_admin_url');
+  const savedSecret = localStorage.getItem('prinsgo_admin_secret');
+  if (savedUrl && savedSecret) {
+    document.getElementById('backend-url').value = savedUrl;
+    document.getElementById('admin-secret').value = savedSecret;
+    API_BASE = savedUrl;
+    ADMIN_SECRET = savedSecret;
+    apiFetch('/dashboard')
+      .then(() => {
+        document.getElementById('login-screen').style.display = 'none';
+        document.getElementById('app').style.display = 'block';
+        navigate('dashboard');
+      })
+      .catch(() => {
+        // saved secret no longer valid, fall through to login screen
+      });
+  } else {
+    document.getElementById('backend-url').value = 'https://prinsgo-backend.onrender.com';
+  }
+})();
+</script>
+
+</body>
+</html>
