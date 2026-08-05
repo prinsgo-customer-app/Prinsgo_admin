@@ -6,17 +6,17 @@
 <title>PrinsGo Admin</title>
 <style>
   :root {
-    --navy: #0A0F24;
-    --navy-light: #131a3a;
-    --blue: #1877F2;
-    --blue-dim: #0f5bc4;
-    --bg: #F5F6FA;
+    --navy: #0F0F14;
+    --navy-light: #1A1B22;
+    --blue: #FFC72C;
+    --blue-dim: #E5B224;
+    --bg: #F8F9FA;
     --card: #ffffff;
     --border: #E4E7EF;
-    --text: #1A1D29;
+    --text: #0F0F14;
     --text-dim: #6B7280;
     --green: #16A34A;
-    --amber: #D97706;
+    --amber: #FFC72C;
     --red: #DC2626;
     --radius: 10px;
   }
@@ -63,7 +63,7 @@
   .btn-primary {
     width: 100%;
     background: var(--blue);
-    color: #fff;
+    color: #0F0F14;
     padding: 13px;
     border-radius: 8px;
     font-weight: 700;
@@ -96,7 +96,7 @@
     margin-bottom: 4px;
   }
   .nav-item:hover { background: rgba(255,255,255,0.06); color: #fff; }
-  .nav-item.active { background: var(--blue); color: #fff; }
+  .nav-item.active { background: var(--blue); color: #0F0F14; font-weight: 700; }
   .main { flex: 1; padding: 28px 32px; max-width: 1200px; }
   .page-title { font-size: 22px; font-weight: 800; margin: 0 0 4px; }
   .page-sub { color: var(--text-dim); font-size: 13px; margin: 0 0 24px; }
@@ -137,7 +137,7 @@
   }
   .action-btn.approve { background: var(--green); color: #fff; border-color: var(--green); }
   .action-btn.reject, .action-btn.block { background: var(--red); color: #fff; border-color: var(--red); }
-  .action-btn.unblock { background: var(--blue); color: #fff; border-color: var(--blue); }
+  .action-btn.unblock { background: var(--blue); color: #0F0F14; border-color: var(--blue); }
   .action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
   .empty-state { text-align: center; padding: 60px 20px; color: var(--text-dim); }
@@ -301,7 +301,7 @@
 <div id="app">
   <div class="app-layout">
     <div class="sidebar">
-      <div class="logo">Prins<span style="color:#1877F2">Go</span></div>
+      <div class="logo">Prins<span style="color:#FFC72C">Go</span></div>
       <div class="nav-item active" data-page="dashboard" onclick="navigate('dashboard')">📊 Dashboard</div>
       <div class="nav-item" data-page="drivers" onclick="navigate('drivers')">🚗 Drivers</div>
       <div class="nav-item" data-page="customers" onclick="navigate('customers')">👤 Customers</div>
