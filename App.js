@@ -26,10 +26,10 @@ export default function App() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      <StatusBar style="light" backgroundColor="#0A0F24" />
+      <StatusBar style="light" backgroundColor="#0F0F14" />
       {loading && (
         <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color="#1877F2" />
+          <ActivityIndicator size="large" color="#FFC72C" />
         </View>
       )}
       <WebView
@@ -47,7 +47,7 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0A0F24' },
+  container: { flex: 1, backgroundColor: '#0F0F14' },
   webview: { flex: 1 },
   loadingOverlay: {
     position: 'absolute',
@@ -56,7 +56,7 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     zIndex: 10,
-    backgroundColor: '#0A0F24',
+    backgroundColor: '#0F0F14',
     justifyContent: 'center',
     alignItems: 'center',
   },
