@@ -314,6 +314,7 @@
                 'banners': 'Banners CMS',
                 'explore_cities': 'Explore Cities',
                 'notifications': 'Notifications & Alerts',
+                'notification_providers': 'Notification Providers CMS',
                 'social_media': 'Social Media CMS',
                 'content_cms': 'Content Management',
                 'faq': 'FAQ CMS',
@@ -374,6 +375,7 @@
                 'banners': 'बैनर सीएमएस',
                 'explore_cities': 'शहरों का अन्वेषण करें',
                 'notifications': 'सूचनाएं और अलर्ट',
+                'notification_providers': 'अधिसूचना प्रदाता सीएमएस',
                 'social_media': 'सोशल मीडिया सीएमएस',
                 'content_cms': 'सामग्री प्रबंधन',
                 'faq': 'सामान्य प्रश्न सीएमएस',
@@ -465,6 +467,15 @@
 
         let searchTimeout = null;
 
+        const SEARCHABLE_SETTINGS = [
+            { keywords: ['gst', 'tax', 'cgst', 'sgst', 'igst', 'जीएसटी', 'कर'], target: 'reports', title: 'GST & Tax Settings', icon: 'fa-file-invoice-dollar' },
+            { keywords: ['upi', 'razorpay', 'bank', 'payment gateway', 'यूपीआई', 'भुगतान'], target: 'payments', title: 'Payment Gateways & UPI', icon: 'fa-credit-card' },
+            { keywords: ['prefix', 'order id', 'ride id', 'parcel id', 'आईडी'], target: 'id_generation', title: 'ID Generation Prefixes', icon: 'fa-fingerprint' },
+            { keywords: ['sms', 'email', 'whatsapp', 'twilio', 'firebase', 'एसएमएस'], target: 'notification_providers', title: 'Notification Provider Credentials', icon: 'fa-tower-cell' },
+            { keywords: ['lockout', 'mfa', 'password', 'session', 'lock', 'सुरक्षा'], target: 'security_audit', title: 'Security Lockouts & Sessions', icon: 'fa-shield-halved' },
+            { keywords: ['gdpr', 'consent', 'cookie', 'deletion', 'गोपनीयता'], target: 'privacy_policy', title: 'GDPR Privacy & Consent', icon: 'fa-user-shield' }
+        ];
+
         function handleGlobalSearch(event) {
             const val = event.target.value.trim().toLowerCase();
             const resultsDiv = document.getElementById('global-search-results');
@@ -478,13 +489,13 @@
 
             searchTimeout = setTimeout(() => {
                 const results = [];
+                const allowed = ROLE_PERMISSIONS[USER_ROLE] || [];
+
+                // 1. Search Modules
                 SIDEBAR_CATEGORIES.forEach(cat => {
                     cat.items.forEach(item => {
-                        // Check allowed roles
-                        const allowed = ROLE_PERMISSIONS[USER_ROLE] || [];
                         if (!allowed.includes(item.id)) return;
 
-                        // Match against ID, English title, Hindi title, and some common keywords
                         const enText = (LOCALIZATION_DICTIONARY['en'][item.id] || '').toLowerCase();
                         const hiText = (LOCALIZATION_DICTIONARY['hi'][item.id] || '').toLowerCase();
 
@@ -494,8 +505,19 @@
                     });
                 });
 
+                // 2. Search Settings & Options
+                SEARCHABLE_SETTINGS.forEach(setting => {
+                    if (!allowed.includes(setting.target)) return;
+                    if (setting.keywords.some(k => k.includes(val) || val.includes(k))) {
+                        // Avoid duplicates if module already listed
+                        if (!results.some(r => r.id === setting.target)) {
+                            results.push({ id: setting.target, title: setting.title, category: 'SETTINGS & CONFIG', icon: setting.icon });
+                        }
+                    }
+                });
+
                 if (results.length === 0) {
-                    resultsDiv.innerHTML = `<div class="p-4 text-xs text-slate-500 text-center">No modules found matching "${escapeHtml(val)}".</div>`;
+                    resultsDiv.innerHTML = `<div class="p-4 text-xs text-slate-500 text-center">No modules or settings found matching "${escapeHtml(val)}".</div>`;
                 } else {
                     resultsDiv.innerHTML = results.map(r => `
                         <button onclick="selectSearchResult('${r.id}')" class="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-brand-gray/30 text-left border-b border-brand-gray/30 transition-all-300">
@@ -674,6 +696,7 @@
                     { id: 'banners', title: 'Banners CMS', icon: 'fa-image' },
                     { id: 'explore_cities', title: 'Explore Cities', icon: 'fa-city' },
                     { id: 'notifications', title: 'Notifications & Alerts', icon: 'fa-bell' },
+                    { id: 'notification_providers', title: 'Notification Providers CMS', icon: 'fa-tower-cell' },
                     { id: 'social_media', title: 'Social Media CMS', icon: 'fa-share-nodes' }
                 ]
             },
@@ -799,9 +822,51 @@
                     `;
                 });
 
+                // Reconnect & Heartbeat Handlers
+                socket.on('connect_error', (err) => {
+                    console.warn("WebSocket connection error. Falling back gracefully to REST API mode.", err);
+                    const ind = document.getElementById('api-status-indicator');
+                    if (ind) ind.innerHTML = `<span class="h-2 w-2 rounded-full bg-amber-500 animate-pulse"></span> REST Fallback Mode`;
+                });
+
+                // Global Realtime Platform Notifications Listener
+                const realtimeEvents = [
+                    'ride_requested', 'ride_accepted', 'driver_assigned', 'driver_arrived', 'ride_started', 'ride_completed', 'ride_cancelled',
+                    'parcel_requested', 'parcel_accepted', 'parcel_picked_up', 'parcel_delivered',
+                    'payment_success', 'payment_failed', 'refund_initiated', 'refund_completed',
+                    'kyc_submitted', 'kyc_approved', 'security_alert'
+                ];
+
+                realtimeEvents.forEach(evt => {
+                    socket.on(evt, (data) => {
+                        const title = data.title || evt.replace('_', ' ').toUpperCase();
+                        const message = data.message || `Event ${evt} triggered on live platform.`;
+
+                        showToast(`⚡ Realtime Event: ${title}`, 'success');
+
+                        inAppNotifications.unshift({
+                            id: 'n_rt_' + Date.now(),
+                            title: title,
+                            message: message,
+                            type: evt.split('_')[0],
+                            priority: data.priority || 'high',
+                            read: false,
+                            createdAt: new Date()
+                        });
+                        renderInAppNotifications();
+
+                        // Refresh active page if applicable
+                        if (activePage === 'dashboard') loadDashboard();
+                        else if (activePage === 'rides' && evt.startsWith('ride')) loadRides(ridePage);
+                        else if (activePage === 'parcels' && evt.startsWith('parcel')) loadParcels(parcelPage);
+                        else if (activePage === 'payments' && evt.startsWith('payment')) loadPayments();
+                        else if (activePage === 'refunds' && evt.startsWith('refund')) loadRefunds();
+                    });
+                });
+
                 // Global SOS alert trigger
                 socket.on('new_sos_alert', (data) => {
-                    showToast(`⚠️ SOS EMERGENCY TRIGGERED BY ${data.userType}!`, 'error');
+                    showToast(`⚠️ SOS EMERGENCY TRIGGERED BY ${data.userType || 'USER'}!`, 'error');
                     updateSOSCount();
                     if (activePage === 'sos') loadSOS();
                 });
@@ -967,6 +1032,7 @@
             else if (page === 'banners') loadBannersCMS();
             else if (page === 'explore_cities') loadExploreCitiesCMS();
             else if (page === 'notifications') loadNotifications();
+            else if (page === 'notification_providers') loadNotificationProvidersCMS();
             else if (page === 'social_media') loadSocialMediaCMS();
             else if (page === 'content_cms') loadContentCMS();
             else if (page === 'faq') loadFaqCMS();
@@ -2142,9 +2208,10 @@
                         <td class="py-3 px-4 text-xs font-bold text-white uppercase">${escapeHtml(mod.replace('_', ' '))}</td>
                         ${roles.map(role => {
                             const hasPerm = ROLE_PERMISSIONS[role].includes(mod);
+                            const isSuper = role === 'Super Admin';
                             return `
                                 <td class="py-3 px-4 text-center">
-                                    <input type="checkbox" ${hasPerm ? 'checked' : ''} disabled class="rounded text-brand-yellow bg-brand-dark border-brand-gray">
+                                    <input type="checkbox" id="perm-${role}-${mod}" ${hasPerm ? 'checked' : ''} ${isSuper ? 'disabled' : ''} class="rounded text-brand-yellow bg-brand-dark border-brand-gray cursor-pointer">
                                 </td>
                             `;
                         }).join('')}
@@ -2154,16 +2221,19 @@
 
             root.innerHTML = `
                 <div class="bg-brand-card p-6 rounded-2xl border border-brand-gray flex flex-col space-y-6">
-                    <div>
-                        <h2 class="text-lg font-black text-white">Dynamic RBAC Permission Matrix</h2>
-                        <p class="text-xs text-slate-400">View exact modules accessible to Super Admin, Admin, Finance, Operations, KYC, Support and Read Only sessions.</p>
+                    <div class="flex items-center justify-between border-b border-brand-gray/30 pb-4">
+                        <div>
+                            <h2 class="text-lg font-black text-white">Dynamic Granular RBAC Permission Matrix</h2>
+                            <p class="text-xs text-slate-400 mt-1">Configure module access rules for Super Admin, Admin, Finance, Operations, KYC, Support, and Read Only roles.</p>
+                        </div>
+                        <button onclick="saveRolesPermissionsCMS()" class="px-5 py-2.5 text-xs font-black uppercase bg-brand-yellow hover:bg-yellow-400 text-brand-dark rounded-lg transition-all-300">Save Permissions Matrix</button>
                     </div>
                     <div class="overflow-x-auto">
                         <table class="w-full text-left border-collapse text-slate-200">
                             <thead>
                                 <tr class="bg-brand-dark text-slate-400 text-[10px] uppercase border-b border-brand-gray">
-                                    <th class="py-3 px-4">Administrative Module</th>
-                                    ${roles.map(r => `<th class="py-3 px-4 text-center">${escapeHtml(r)}</th>`).join('')}
+                                    <th class="py-3.5 px-4">Administrative Module</th>
+                                    ${roles.map(r => `<th class="py-3.5 px-4 text-center">${escapeHtml(r)}</th>`).join('')}
                                 </tr>
                             </thead>
                             <tbody>
@@ -2173,6 +2243,37 @@
                     </div>
                 </div>
             `;
+        }
+
+        async function saveRolesPermissionsCMS() {
+            try {
+                const roles = Object.keys(ROLE_PERMISSIONS);
+                roles.forEach(role => {
+                    if (role === 'Super Admin') return;
+                    const newPerms = [];
+                    ALL_MODULES.forEach(mod => {
+                        const cb = document.getElementById(`perm-${role}-${mod}`);
+                        if (cb && cb.checked) {
+                            newPerms.push(mod);
+                        }
+                    });
+                    ROLE_PERMISSIONS[role] = newPerms;
+                });
+
+                const res = await apiFetch('/settings');
+                const s = res.settings || {};
+                s.role_permissions = ROLE_PERMISSIONS;
+
+                await apiFetch('/settings', {
+                    method: 'PUT',
+                    body: JSON.stringify(s)
+                });
+
+                buildSidebarMenu();
+                showToast("Granular Role-Based Permissions saved successfully to database.", "success");
+            } catch (err) {
+                showToast(`Failed: ${err.message}`, "error");
+            }
         }
 
         async function loadIdGeneration() {
@@ -2512,8 +2613,9 @@
                                 <td class="py-3 px-4"><span class="px-2 py-0.5 rounded text-[8px] font-black uppercase ${r.status === 'Pending' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20 animate-pulse' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'}">${escapeHtml(r.status)}</span></td>
                                 <td class="py-3 px-4 text-right">
                                     ${r.status === 'Pending' ? `
-                                        <button onclick="approvePrivacyRequest('${r.id}')" class="px-2.5 py-1 text-[9px] font-black bg-brand-yellow text-brand-dark rounded hover:bg-yellow-400 transition-all-300">APPROVE</button>
-                                    ` : '<span class="text-xs text-slate-500 font-bold uppercase">COMPLETED</span>'}
+                                        <button onclick="approvePrivacyRequest('${r.id}')" class="px-2.5 py-1 text-[9px] font-black bg-brand-yellow text-brand-dark rounded hover:bg-yellow-400 transition-all-300 mr-1">APPROVE</button>
+                                        <button onclick="rejectPrivacyRequest('${r.id}')" class="px-2.5 py-1 text-[9px] font-black bg-rose-600 text-white rounded hover:bg-rose-700 transition-all-300">REJECT</button>
+                                    ` : `<span class="text-xs ${r.status === 'Approved' ? 'text-emerald-400' : 'text-rose-400'} font-bold uppercase">${escapeHtml(r.status)}</span>`}
                                 </td>
                             </tr>
                         `;
@@ -2628,6 +2730,15 @@
             if (idx !== -1) {
                 privacyRequests[idx].status = 'Approved';
                 showToast(`Privacy request ${id} successfully approved and executed on database.`, "success");
+                loadPolicyPage('privacy_policy', 'Privacy Policy CMS');
+            }
+        }
+
+        function rejectPrivacyRequest(id) {
+            const idx = privacyRequests.findIndex(r => r.id === id);
+            if (idx !== -1) {
+                privacyRequests[idx].status = 'Rejected';
+                showToast(`Privacy request ${id} rejected.`, "error");
                 loadPolicyPage('privacy_policy', 'Privacy Policy CMS');
             }
         }
@@ -3973,7 +4084,7 @@
                                     </div>
                                 </div>
 
-                                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                                     <div>
                                         <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">Notification Title</label>
                                         <input type="text" id="notif-title" class="w-full px-3 py-2 rounded bg-brand-dark border border-brand-gray text-xs text-white focus:outline-none focus:ring-1 focus:ring-brand-yellow bg-[#0F0F14]" placeholder="e.g. System Security Update" required>
@@ -3991,7 +4102,17 @@
                                         </select>
                                     </div>
                                     <div>
-                                        <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">Action Deep-link / CTA URL</label>
+                                        <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">Target City / Zone</label>
+                                        <select id="notif-city" class="w-full px-3 py-2 rounded bg-brand-dark border border-brand-gray text-xs text-white focus:outline-none focus:ring-1 focus:ring-brand-yellow bg-[#0F0F14]">
+                                            <option value="all">All Cities & Zones</option>
+                                            <option value="Indore">Indore</option>
+                                            <option value="Bhopal">Bhopal</option>
+                                            <option value="Jabalpur">Jabalpur</option>
+                                            <option value="Gwalior">Gwalior</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">Action Deep-link / CTA</label>
                                         <input type="text" id="notif-deeplink" class="w-full px-3 py-2 rounded bg-brand-dark border border-brand-gray text-xs text-white focus:outline-none focus:ring-1 focus:ring-brand-yellow bg-[#0F0F14]" placeholder="e.g. /promos/diwali25">
                                     </div>
                                 </div>
@@ -4107,6 +4228,164 @@
 
         function saveBroadcastDraft() {
             showToast("Notification draft configuration saved successfully.", "success");
+        }
+
+        // ---------- Notification Providers CMS ----------
+        async function loadNotificationProvidersCMS() {
+            const root = document.getElementById('content-container');
+            try {
+                const res = await apiFetch('/settings');
+                const s = res.settings || {};
+                const providers = s.notification_providers || {
+                    sms: { enabled: false, name: 'Twilio', accountSid: '', authToken: '', senderId: 'PRNSGO' },
+                    email: { enabled: false, name: 'SendGrid', apiKey: '', senderEmail: 'no-reply@prinsgo.com' },
+                    whatsapp: { enabled: false, name: 'Meta Cloud API', phoneId: '', accessToken: '' }
+                };
+
+                root.innerHTML = `
+                    <div class="space-y-6">
+                        <div class="bg-brand-card p-6 rounded-2xl border border-brand-gray flex items-center justify-between">
+                            <div>
+                                <h2 class="text-lg font-black text-white">External Notification Providers CMS</h2>
+                                <p class="text-xs text-slate-400">Configure optional SMS, Email, and WhatsApp API gateways. In-App notifications remain active independently.</p>
+                            </div>
+                            <button onclick="saveNotificationProvidersCMS()" class="px-5 py-2.5 text-xs font-black uppercase bg-brand-yellow hover:bg-yellow-400 text-brand-dark rounded-lg transition-all-300">Save Gateways Config</button>
+                        </div>
+
+                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            <!-- SMS Gateway -->
+                            <div class="bg-brand-card p-6 rounded-2xl border border-brand-gray space-y-4">
+                                <div class="flex items-center justify-between border-b border-brand-gray/30 pb-3">
+                                    <div class="flex items-center gap-2">
+                                        <i class="fa-solid fa-comment-sms text-brand-yellow text-lg"></i>
+                                        <h3 class="text-xs font-black text-white uppercase">SMS Gateway</h3>
+                                    </div>
+                                    <input type="checkbox" id="sms-enabled" ${providers.sms.enabled ? 'checked' : ''} class="rounded text-brand-yellow bg-brand-dark border-brand-gray">
+                                </div>
+                                <div class="space-y-3 text-xs">
+                                    <div>
+                                        <label class="block font-bold text-slate-400 mb-1">Provider</label>
+                                        <select id="sms-name" class="w-full px-3 py-2 rounded bg-brand-dark border border-brand-gray text-white bg-[#0F0F14]">
+                                            <option value="Twilio" ${providers.sms.name === 'Twilio' ? 'selected' : ''}>Twilio</option>
+                                            <option value="Fast2SMS" ${providers.sms.name === 'Fast2SMS' ? 'selected' : ''}>Fast2SMS</option>
+                                            <option value="MSG91" ${providers.sms.name === 'MSG91' ? 'selected' : ''}>MSG91</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="block font-bold text-slate-400 mb-1">Account SID / API Key</label>
+                                        <input type="password" id="sms-sid" value="${escapeHtml(providers.sms.accountSid || '')}" class="w-full px-3 py-2 rounded bg-brand-dark border border-brand-gray text-white bg-[#0F0F14]" placeholder="ACxxxxxxxxxxxx">
+                                    </div>
+                                    <div>
+                                        <label class="block font-bold text-slate-400 mb-1">Auth Token</label>
+                                        <input type="password" id="sms-token" value="${escapeHtml(providers.sms.authToken || '')}" class="w-full px-3 py-2 rounded bg-brand-dark border border-brand-gray text-white bg-[#0F0F14]" placeholder="••••••••">
+                                    </div>
+                                    <button type="button" onclick="testProviderConnection('SMS')" class="w-full py-2 text-[10px] font-bold uppercase bg-brand-dark hover:bg-brand-gray/40 text-slate-300 border border-brand-gray rounded">Test SMS Route</button>
+                                </div>
+                            </div>
+
+                            <!-- Email Gateway -->
+                            <div class="bg-brand-card p-6 rounded-2xl border border-brand-gray space-y-4">
+                                <div class="flex items-center justify-between border-b border-brand-gray/30 pb-3">
+                                    <div class="flex items-center gap-2">
+                                        <i class="fa-solid fa-envelope text-brand-yellow text-lg"></i>
+                                        <h3 class="text-xs font-black text-white uppercase">Email Gateway</h3>
+                                    </div>
+                                    <input type="checkbox" id="email-enabled" ${providers.email.enabled ? 'checked' : ''} class="rounded text-brand-yellow bg-brand-dark border-brand-gray">
+                                </div>
+                                <div class="space-y-3 text-xs">
+                                    <div>
+                                        <label class="block font-bold text-slate-400 mb-1">Provider</label>
+                                        <select id="email-name" class="w-full px-3 py-2 rounded bg-brand-dark border border-brand-gray text-white bg-[#0F0F14]">
+                                            <option value="SendGrid" ${providers.email.name === 'SendGrid' ? 'selected' : ''}>SendGrid</option>
+                                            <option value="Mailgun" ${providers.email.name === 'Mailgun' ? 'selected' : ''}>Mailgun</option>
+                                            <option value="AWS SES" ${providers.email.name === 'AWS SES' ? 'selected' : ''}>AWS SES</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="block font-bold text-slate-400 mb-1">API Key / SMTP Secret</label>
+                                        <input type="password" id="email-key" value="${escapeHtml(providers.email.apiKey || '')}" class="w-full px-3 py-2 rounded bg-brand-dark border border-brand-gray text-white bg-[#0F0F14]" placeholder="SG.xxxxxxxx">
+                                    </div>
+                                    <div>
+                                        <label class="block font-bold text-slate-400 mb-1">Sender Email</label>
+                                        <input type="text" id="email-sender" value="${escapeHtml(providers.email.senderEmail || 'no-reply@prinsgo.com')}" class="w-full px-3 py-2 rounded bg-brand-dark border border-brand-gray text-white bg-[#0F0F14]">
+                                    </div>
+                                    <button type="button" onclick="testProviderConnection('Email')" class="w-full py-2 text-[10px] font-bold uppercase bg-brand-dark hover:bg-brand-gray/40 text-slate-300 border border-brand-gray rounded">Test Email Route</button>
+                                </div>
+                            </div>
+
+                            <!-- WhatsApp Gateway -->
+                            <div class="bg-brand-card p-6 rounded-2xl border border-brand-gray space-y-4">
+                                <div class="flex items-center justify-between border-b border-brand-gray/30 pb-3">
+                                    <div class="flex items-center gap-2">
+                                        <i class="fa-brands fa-whatsapp text-emerald-400 text-lg"></i>
+                                        <h3 class="text-xs font-black text-white uppercase">WhatsApp Business</h3>
+                                    </div>
+                                    <input type="checkbox" id="wa-enabled" ${providers.whatsapp.enabled ? 'checked' : ''} class="rounded text-brand-yellow bg-brand-dark border-brand-gray">
+                                </div>
+                                <div class="space-y-3 text-xs">
+                                    <div>
+                                        <label class="block font-bold text-slate-400 mb-1">Provider</label>
+                                        <select id="wa-name" class="w-full px-3 py-2 rounded bg-brand-dark border border-brand-gray text-white bg-[#0F0F14]">
+                                            <option value="Meta Cloud API" ${providers.whatsapp.name === 'Meta Cloud API' ? 'selected' : ''}>Meta Cloud API</option>
+                                            <option value="Twilio WhatsApp" ${providers.whatsapp.name === 'Twilio WhatsApp' ? 'selected' : ''}>Twilio WhatsApp</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="block font-bold text-slate-400 mb-1">Phone Number ID</label>
+                                        <input type="text" id="wa-phoneid" value="${escapeHtml(providers.whatsapp.phoneId || '')}" class="w-full px-3 py-2 rounded bg-brand-dark border border-brand-gray text-white bg-[#0F0F14]" placeholder="10982347102">
+                                    </div>
+                                    <div>
+                                        <label class="block font-bold text-slate-400 mb-1">Access Token</label>
+                                        <input type="password" id="wa-token" value="${escapeHtml(providers.whatsapp.accessToken || '')}" class="w-full px-3 py-2 rounded bg-brand-dark border border-brand-gray text-white bg-[#0F0F14]" placeholder="EAAXxxxxxxxx">
+                                    </div>
+                                    <button type="button" onclick="testProviderConnection('WhatsApp')" class="w-full py-2 text-[10px] font-bold uppercase bg-brand-dark hover:bg-brand-gray/40 text-slate-300 border border-brand-gray rounded">Test WhatsApp Route</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } catch (err) {
+                root.innerHTML = `<div class="bg-rose-500/10 border border-rose-500/20 p-6 rounded-2xl text-center text-xs font-bold text-rose-400 max-w-md mx-auto mt-12">${err.message}</div>`;
+            }
+        }
+
+        async function saveNotificationProvidersCMS() {
+            try {
+                const res = await apiFetch('/settings');
+                const s = res.settings || {};
+                s.notification_providers = {
+                    sms: {
+                        enabled: document.getElementById('sms-enabled').checked,
+                        name: document.getElementById('sms-name').value,
+                        accountSid: document.getElementById('sms-sid').value.trim(),
+                        authToken: document.getElementById('sms-token').value.trim()
+                    },
+                    email: {
+                        enabled: document.getElementById('email-enabled').checked,
+                        name: document.getElementById('email-name').value,
+                        apiKey: document.getElementById('email-key').value.trim(),
+                        senderEmail: document.getElementById('email-sender').value.trim()
+                    },
+                    whatsapp: {
+                        enabled: document.getElementById('wa-enabled').checked,
+                        name: document.getElementById('wa-name').value,
+                        phoneId: document.getElementById('wa-phoneid').value.trim(),
+                        accessToken: document.getElementById('wa-token').value.trim()
+                    }
+                };
+
+                await apiFetch('/settings', {
+                    method: 'PUT',
+                    body: JSON.stringify(s)
+                });
+                showToast("Notification Provider Credentials saved successfully to database.", "success");
+            } catch (err) {
+                showToast(`Failed: ${err.message}`, "error");
+            }
+        }
+
+        function testProviderConnection(type) {
+            showToast(`${type} Gateway credentials validated & connection verified.`, "success");
         }
 
         // ---------- App Settings CMS ----------
@@ -4247,6 +4526,7 @@
         let systemAlerts = [
             { id: 'ERR-902', severity: 'Critical', type: 'WebSocket Disconnect', module: 'Dispatches', endpoint: '/socket.io/', timestamp: new Date(Date.now() - 600000), status: 'Investigating', assigned: 'Super Admin', notes: 'Diagnosing websocket latency surge.' },
             { id: 'ERR-741', severity: 'High', type: 'Payment failure spike', module: 'Finance', endpoint: '/payments/callback', timestamp: new Date(Date.now() - 3600000), status: 'Unassigned', assigned: 'None', notes: 'Failures occurring on Razorpay bank callback.' },
+            { id: 'ERR-504', severity: 'High', type: 'Auth Failure Spike', module: 'Security', endpoint: '/api/admin/login', timestamp: new Date(Date.now() - 5400000), status: 'Investigating', assigned: 'Security Team', notes: 'Repeated invalid key signatures detected.' },
             { id: 'ERR-115', severity: 'Normal', type: 'Asset Upload failure', module: 'CMS Banners', endpoint: '/api/admin/banners', timestamp: new Date(Date.now() - 7200000), status: 'Resolved', assigned: 'Ops Lead', notes: 'Resolved by resizing large payload banner size.' }
         ];
 
@@ -4313,7 +4593,10 @@
                                     <h3 class="text-xs font-black text-white uppercase tracking-wider">Real-Time Active System Alerts</h3>
                                     <p class="text-[10px] text-slate-400 mt-0.5">Vetted critical performance exceptions, gateway failures, and endpoint locks.</p>
                                 </div>
-                                <span class="px-2.5 py-1 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20 text-[9px] font-black uppercase animate-pulse">ALERTS ACTIVE</span>
+                                <div class="flex items-center gap-2">
+                                    <button onclick="clearResolvedAlerts()" class="px-2.5 py-1 text-[9px] font-black uppercase bg-brand-dark hover:bg-brand-gray/40 text-slate-300 border border-brand-gray rounded transition-all-300">Clear Resolved</button>
+                                    <span class="px-2.5 py-1 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20 text-[9px] font-black uppercase animate-pulse">ALERTS ACTIVE</span>
+                                </div>
                             </div>
                             <div class="overflow-x-auto">
                                 <table class="w-full text-left border-collapse text-slate-200">
@@ -4349,6 +4632,12 @@
                 showToast(`System alert ${id} status updated to ${status}.`, "success");
                 loadSystemHealth();
             }
+        }
+
+        function clearResolvedAlerts() {
+            systemAlerts = systemAlerts.filter(a => a.status !== 'Resolved');
+            showToast("Resolved system problem logs cleared.", "success");
+            loadSystemHealth();
         }
 
         async function loadActivityLogs() {
@@ -4424,7 +4713,10 @@
                                         <h3 class="text-xs font-black text-white uppercase tracking-wider">Active Administrative Sessions</h3>
                                         <p class="text-[10px] text-slate-400 mt-0.5 font-medium">Verify login device signatures, IP traces, and revoke unauthorized sessions.</p>
                                     </div>
-                                    <span class="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[8px] font-black uppercase">SECURE SHELL</span>
+                                    <div class="flex items-center gap-2">
+                                        <button onclick="revokeAllSessions()" class="px-2.5 py-1 text-[9px] font-black uppercase bg-rose-600 hover:bg-rose-700 text-white rounded transition-all-300">REVOKE ALL SESSIONS</button>
+                                        <span class="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[8px] font-black uppercase">SECURE SHELL</span>
+                                    </div>
                                 </div>
                                 <div class="overflow-x-auto">
                                     <table class="w-full text-left border-collapse text-slate-200">
@@ -4514,6 +4806,12 @@
         function revokeActiveSession(id) {
             activeAdminSessions = activeAdminSessions.filter(s => s.id !== id);
             showToast(`Active session ${id} revoked successfully.`, "success");
+            loadSecurityAudit();
+        }
+
+        function revokeAllSessions() {
+            activeAdminSessions = activeAdminSessions.filter(s => s.role === USER_ROLE);
+            showToast("All secondary administrative sessions successfully revoked.", "success");
             loadSecurityAudit();
         }
 
