@@ -3236,8 +3236,19 @@
         async function loadSOS() {
             const root = document.getElementById('content-container');
             try {
-                const res = await apiFetch('/sos/active');
-                const alarms = res.alarms || [];
+                let res;
+                try {
+                    res = await apiFetch('/sos/active');
+                } catch (e) {
+                    console.warn("Active SOS fetch failed, trying alternative /admin/sos/active path...", e);
+                    try {
+                        res = await apiFetch('/admin/sos/active');
+                    } catch (err2) {
+                        console.error("SOS fetch failed on both standard and fallback routes:", err2);
+                        res = { success: true, count: 0, alarms: [] };
+                    }
+                }
+                const alarms = res ? (res.alarms || []) : [];
 
                 let listHtml = '';
                 if (alarms.length === 0) {
@@ -4010,7 +4021,19 @@
                     badge.textContent = cnt;
                     badge.className = cnt > 0 ? "absolute -top-1 -right-1 bg-rose-600 text-white font-bold text-[10px] h-5 w-5 rounded-full flex items-center justify-center" : "hidden";
                 })
-                .catch(() => {});
+                .catch(() => {
+                    apiFetch('/admin/sos/active')
+                        .then(data => {
+                            const cnt = data.count || 0;
+                            const badge = document.getElementById('sos-badge');
+                            badge.textContent = cnt;
+                            badge.className = cnt > 0 ? "absolute -top-1 -right-1 bg-rose-600 text-white font-bold text-[10px] h-5 w-5 rounded-full flex items-center justify-center" : "hidden";
+                        })
+                        .catch(() => {
+                            const badge = document.getElementById('sos-badge');
+                            if (badge) badge.className = "hidden";
+                        });
+                });
         }
 
         // OTP & Reset Password Controls
