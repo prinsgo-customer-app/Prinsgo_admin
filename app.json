@@ -5,8 +5,19 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
-    "splash": { "backgroundColor": "#0A0F24" },
-    "assetBundlePatterns": ["**/*"],
-    "android": { "package": "com.prinsgo.admin" }
+    "splash": {
+      "backgroundColor": "#0A0F24"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "android": {
+      "package": "com.prinsgo.admin"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "bfaf041c-55ae-4da0-9228-a37439ec9658"
+      }
+    }
   }
 }
