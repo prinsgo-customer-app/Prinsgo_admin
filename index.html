@@ -3605,7 +3605,7 @@
                                 <td class="py-3 px-2 text-[10px] text-slate-300 font-mono">${escapeHtml(b.linkType)}: ${escapeHtml(b.linkValue)}</td>
                                 <td class="py-3 px-2 text-xs text-center">${b.priority}</td>
                                 <td class="py-3 px-2 text-xs text-center"><span class="px-1.5 py-0.5 rounded text-[9px] font-bold ${b.isActive ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-slate-500/20 text-slate-400'}">${b.isActive ? 'Active' : 'Disabled'}</span></td>
-                                <td class="py-3 px-2 text-xs text-center"><button onclick="deleteBannerCMS(${idx})" class="text-rose-500 hover:text-rose-400 transition-colors"><i class="fa-solid fa-trash-can"></i></button></td>
+                                <td class="py-3 px-2 text-xs text-center"><button onclick="deleteBannerCMS(${idx}, '${escapeHtml(b.id || '')}')" class="text-rose-500 hover:text-rose-400 transition-colors"><i class="fa-solid fa-trash-can"></i></button></td>
                             </tr>
                         `;
                     });
@@ -3692,7 +3692,7 @@
                 return;
             }
 
-            const newBanner = {
+            const bannerPayload = {
                 title,
                 imageUrl,
                 image: imageUrl,
@@ -3705,10 +3705,21 @@
             };
 
             try {
+                // Try direct /banners endpoint first if supported by backend
+                try {
+                    await apiFetch('/banners', {
+                        method: 'POST',
+                        body: JSON.stringify(bannerPayload)
+                    });
+                } catch (e) {
+                    console.warn("Direct /banners API POST non-fatal error, syncing via /settings:", e);
+                }
+
+                // Sync with /settings store
                 const res = await apiFetch('/settings');
                 const s = res.settings || {};
                 const list = s.banners_list || s.banners || [];
-                list.push(newBanner);
+                list.push(bannerPayload);
                 s.banners_list = list;
                 s.banners = list;
 
@@ -3723,12 +3734,22 @@
             }
         }
 
-        async function deleteBannerCMS(idx) {
+        async function deleteBannerCMS(idx, bannerId = null) {
             try {
+                if (bannerId) {
+                    try {
+                        await apiFetch(`/banners/${bannerId}`, { method: 'DELETE' });
+                    } catch (e) {
+                        console.warn(`Direct /banners/${bannerId} DELETE error, syncing via /settings:`, e);
+                    }
+                }
+
                 const res = await apiFetch('/settings');
                 const s = res.settings || {};
                 const list = s.banners_list || s.banners || [];
-                list.splice(idx, 1);
+                if (idx >= 0 && idx < list.length) {
+                    list.splice(idx, 1);
+                }
                 s.banners_list = list;
                 s.banners = list;
 
@@ -5408,15 +5429,26 @@
                 const firstBannerTitle = liveBanners.length > 0 ? liveBanners[0].title : 'Flat 20% OFF on your first ride booking!';
                 const firstBannerVal = (liveBanners.length > 0 && liveBanners[0].linkValue) ? liveBanners[0].linkValue : 'PRINSGO20';
 
-                currentCustomerCMS = s.customer_app_cms || [
-                    { id: 'banner_slider', name: 'Banner Slider Widget', enabled: true, title: firstBannerTitle, subtitle: `Use Promo Code ${firstBannerVal}` },
-                    { id: 'hero', name: 'Hero Main Search Bar', enabled: true, title: 'Where can we take you?', subtitle: 'Enter Indore pickup point' },
-                    { id: 'services', name: 'Service categories Grid', enabled: true, title: 'PrinsGo Premium Services', subtitle: 'Rides, Parcels & Intercity Outstations' },
-                    { id: 'quick_actions', name: 'Quick Action Buttons', enabled: true, title: 'Quick Express Actions', subtitle: 'Book in one tap' },
-                    { id: 'wallet_card', name: 'Wallet Account Card', enabled: true, title: 'Digital Ledger Wallet', subtitle: 'Load money instantly' },
-                    { id: 'explore_cities', name: 'Explore Cities Highlights', enabled: true, title: 'Explore Madhya Pradesh', subtitle: 'Indore, Bhedaghat, Amarkantak, Kanha' },
-                    { id: 'referral', name: 'Referral & Earnings widget', enabled: true, title: 'Refer & Earn Gold Coins', subtitle: 'Share code PRINSGO777' }
-                ];
+                if (s.customer_app_cms && Array.isArray(s.customer_app_cms)) {
+                    currentCustomerCMS = s.customer_app_cms;
+                    const bannerWidget = currentCustomerCMS.find(i => i.id === 'banner_slider');
+                    if (bannerWidget && liveBanners.length > 0) {
+                        bannerWidget.title = liveBanners[0].title;
+                        if (liveBanners[0].linkValue) {
+                            bannerWidget.subtitle = `Use Promo Code ${liveBanners[0].linkValue}`;
+                        }
+                    }
+                } else {
+                    currentCustomerCMS = [
+                        { id: 'banner_slider', name: 'Banner Slider Widget', enabled: true, title: firstBannerTitle, subtitle: `Use Promo Code ${firstBannerVal}` },
+                        { id: 'hero', name: 'Hero Main Search Bar', enabled: true, title: 'Where can we take you?', subtitle: 'Enter Indore pickup point' },
+                        { id: 'services', name: 'Service categories Grid', enabled: true, title: 'PrinsGo Premium Services', subtitle: 'Rides, Parcels & Intercity Outstations' },
+                        { id: 'quick_actions', name: 'Quick Action Buttons', enabled: true, title: 'Quick Express Actions', subtitle: 'Book in one tap' },
+                        { id: 'wallet_card', name: 'Wallet Account Card', enabled: true, title: 'Digital Ledger Wallet', subtitle: 'Load money instantly' },
+                        { id: 'explore_cities', name: 'Explore Cities Highlights', enabled: true, title: 'Explore Madhya Pradesh', subtitle: 'Indore, Bhedaghat, Amarkantak, Kanha' },
+                        { id: 'referral', name: 'Referral & Earnings widget', enabled: true, title: 'Refer & Earn Gold Coins', subtitle: 'Share code PRINSGO777' }
+                    ];
+                }
                 renderCustomerCMS();
             } catch (err) {
                 root.innerHTML = `<div class="bg-rose-500/10 border border-rose-500/20 p-6 rounded-2xl text-center text-xs font-bold text-rose-400 max-w-md mx-auto mt-12">${err.message}</div>`;
@@ -5634,6 +5666,65 @@
                 const s = sRes.settings || {};
 
                 s.customer_app_cms = currentCustomerCMS;
+
+                // Also sync banner_slider widget edit to live banner endpoints
+                const bannerWidget = currentCustomerCMS.find(i => i.id === 'banner_slider');
+                if (bannerWidget) {
+                    const bannerTitle = bannerWidget.title;
+                    let linkVal = bannerWidget.subtitle || '';
+                    if (linkVal.includes('Use Promo Code ')) {
+                        linkVal = linkVal.replace('Use Promo Code ', '').trim();
+                    }
+
+                    // Fetch current live banners to see if there is an existing banner ID
+                    const bannersRes = await fetch(`${API_BASE}/api/banners`).then(r => r.json()).catch(() => ({ success: false, banners: [] }));
+                    const liveBanners = (bannersRes && bannersRes.success && bannersRes.banners) ? bannersRes.banners : [];
+
+                    const bannerPayload = {
+                        title: bannerTitle,
+                        imageUrl: (liveBanners.length > 0 && liveBanners[0].imageUrl) ? liveBanners[0].imageUrl : 'https://prinsgo.com/welcome_banner.png',
+                        image: (liveBanners.length > 0 && liveBanners[0].imageUrl) ? liveBanners[0].imageUrl : 'https://prinsgo.com/welcome_banner.png',
+                        linkType: (liveBanners.length > 0 && liveBanners[0].linkType) ? liveBanners[0].linkType : 'none',
+                        linkValue: linkVal,
+                        link: linkVal,
+                        order: 0,
+                        priority: 0,
+                        isActive: true
+                    };
+
+                    if (liveBanners.length > 0 && liveBanners[0]._id) {
+                        const bannerId = liveBanners[0]._id;
+                        try {
+                            await apiFetch(`/banners/${bannerId}`, {
+                                method: 'PUT',
+                                body: JSON.stringify(bannerPayload)
+                            });
+                        } catch (e) {
+                            console.warn(`Direct /banners/${bannerId} PUT error, syncing via /settings:`, e);
+                        }
+                    } else {
+                        try {
+                            await apiFetch('/banners', {
+                                method: 'POST',
+                                body: JSON.stringify(bannerPayload)
+                            });
+                        } catch (e) {
+                            console.warn("Direct /banners POST error, syncing via /settings:", e);
+                        }
+                    }
+
+                    // Sync with s.banners_list and s.banners in settings
+                    const list = s.banners_list || s.banners || [];
+                    if (list.length > 0) {
+                        list[0].title = bannerTitle;
+                        list[0].linkValue = linkVal;
+                        list[0].link = linkVal;
+                    } else {
+                        list.push(bannerPayload);
+                    }
+                    s.banners_list = list;
+                    s.banners = list;
+                }
 
                 await apiFetch('/settings', {
                     method: 'PUT',
