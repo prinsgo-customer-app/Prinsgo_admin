@@ -1957,26 +1957,45 @@
         async function loadFeatureControl() {
             const root = document.getElementById('content-container');
             try {
+                let togglesList = [];
+                try {
+                    const togglesRes = await fetch(`${API_BASE}/api/toggles`).then(r => r.json());
+                    if (togglesRes && togglesRes.success && Array.isArray(togglesRes.toggles)) {
+                        togglesList = togglesRes.toggles;
+                    }
+                } catch (e) {
+                    console.warn("Public /api/toggles fetch failed, fallback to /settings");
+                }
+
                 const res = await apiFetch('/settings');
                 const s = res.settings || {};
                 const flags = s.feature_flags || {
-                    ride: true, parcel: true, wallet: true, cash_payment: true,
-                    upi_payment: true, live_tracking: true, sos: true, referral: true,
-                    coupons: true, driver_chat: true, ratings: true
+                    ride_booking: true, parcel_booking: true, maintenance_mode: false,
+                    wallet: true, cash_payment: true, upi_payment: true, live_tracking: true,
+                    sos: true, referral: true, coupons: true, driver_chat: true, ratings: true
                 };
+
+                // Merge toggles from /api/toggles endpoint if present
+                togglesList.forEach(t => {
+                    if (t.key) {
+                        flags[t.key] = t.isEnabled !== false;
+                    }
+                });
+
+                window.currentFeatureFlagsList = Object.keys(flags);
 
                 root.innerHTML = `
                     <div class="max-w-2xl mx-auto bg-brand-card p-6 rounded-2xl border border-brand-gray space-y-6">
                         <div>
-                            <h3 class="text-sm font-bold text-brand-yellow uppercase tracking-wider">Central Feature Flags Control</h3>
-                            <p class="text-xs text-slate-400 mt-1">Safely enable or disable platform-wide services instantly.</p>
+                            <h3 class="text-sm font-bold text-brand-yellow uppercase tracking-wider">Central Feature Control Center</h3>
+                            <p class="text-xs text-slate-400 mt-1">Safely enable or disable platform-wide services and toggles consumed by Customer App and Driver App.</p>
                         </div>
                         <div class="space-y-4">
                             ${Object.keys(flags).map(key => `
                                 <div class="flex items-center justify-between border-b border-brand-gray/30 pb-3">
                                     <div>
-                                        <h4 class="text-xs font-bold text-white uppercase">${escapeHtml(key.replace('_', ' '))}</h4>
-                                        <p class="text-[10px] text-slate-400">Platform status flag toggle</p>
+                                        <h4 class="text-xs font-bold text-white uppercase">${escapeHtml(key.replace(/_/g, ' '))}</h4>
+                                        <p class="text-[10px] text-slate-400 font-mono">Key: ${escapeHtml(key)}</p>
                                     </div>
                                     <label class="relative inline-flex items-center cursor-pointer">
                                         <input type="checkbox" id="flag-${key}" class="sr-only peer" ${flags[key] ? 'checked' : ''}>
@@ -1985,7 +2004,7 @@
                                 </div>
                             `).join('')}
                             <button onclick="saveFeatureFlags()" class="px-5 py-3 text-xs font-black uppercase bg-brand-yellow hover:bg-yellow-400 text-brand-dark rounded-lg transition-colors">
-                                Save Feature Flags
+                                Save Feature Flags & Toggles
                             </button>
                         </div>
                     </div>
@@ -1996,10 +2015,13 @@
         }
 
         async function saveFeatureFlags() {
-            const keys = ['ride', 'parcel', 'wallet', 'cash_payment', 'upi_payment', 'live_tracking', 'sos', 'referral', 'coupons', 'driver_chat', 'ratings'];
+            const keys = window.currentFeatureFlagsList || ['ride_booking', 'parcel_booking', 'maintenance_mode', 'ride', 'parcel', 'wallet', 'cash_payment', 'upi_payment', 'live_tracking', 'sos', 'referral', 'coupons', 'driver_chat', 'ratings'];
             const updated = {};
             keys.forEach(k => {
-                updated[k] = document.getElementById(`flag-${k}`).checked;
+                const el = document.getElementById(`flag-${k}`);
+                if (el) {
+                    updated[k] = el.checked;
+                }
             });
 
             try {
@@ -2011,7 +2033,7 @@
                     method: 'PUT',
                     body: JSON.stringify(s)
                 });
-                showToast("Central Feature Flags updated successfully.", "success");
+                showToast("Central Feature Flags and toggles updated successfully.", "success");
             } catch (err) {
                 showToast(`Failed: ${err.message}`, "error");
             }
@@ -3538,21 +3560,52 @@
         async function loadBannersCMS() {
             const root = document.getElementById('content-container');
             try {
-                const res = await apiFetch('/admin/banners');
-                const list = res.banners || [];
+                let list = [];
+                try {
+                    const publicRes = await fetch(`${API_BASE}/api/banners`).then(r => r.json());
+                    if (publicRes && publicRes.success && Array.isArray(publicRes.banners) && publicRes.banners.length > 0) {
+                        list = publicRes.banners.map(b => ({
+                            id: b._id,
+                            title: b.title,
+                            image: b.imageUrl,
+                            linkType: b.linkType || 'none',
+                            linkValue: b.linkValue || '',
+                            priority: b.order !== undefined ? b.order : 0,
+                            isActive: b.isActive !== false
+                        }));
+                    }
+                } catch (e) {
+                    console.warn("Public /api/banners fetch failed, fallback to /settings");
+                }
+
+                if (list.length === 0) {
+                    const res = await apiFetch('/settings');
+                    const s = res.settings || {};
+                    const rawList = s.banners_list || s.banners || [];
+                    list = rawList.map((b, idx) => ({
+                        id: b.id || b._id || idx,
+                        title: b.title || 'Untitled Banner',
+                        image: b.imageUrl || b.image || '',
+                        linkType: b.linkType || 'none',
+                        linkValue: b.linkValue || b.link || '',
+                        priority: b.order !== undefined ? b.order : (b.priority !== undefined ? b.priority : idx),
+                        isActive: b.isActive !== false
+                    }));
+                }
 
                 let bannerRows = '';
                 if (list.length === 0) {
-                    bannerRows = `<tr><td colspan="5" class="text-center py-4 text-slate-400 text-xs">No banners currently configured.</td></tr>`;
+                    bannerRows = `<tr><td colspan="6" class="text-center py-4 text-slate-400 text-xs">No banners currently configured.</td></tr>`;
                 } else {
                     list.forEach((b, idx) => {
                         bannerRows += `
                             <tr class="hover:bg-brand-gray/20 border-b border-brand-gray/40 transition-all-300">
-                                <td class="py-3 px-4 text-xs font-bold text-white"><img src="${escapeHtml(b.image || '')}" class="w-16 h-10 object-cover rounded border border-brand-gray"></td>
-                                <td class="py-3 px-4 text-xs font-semibold text-brand-yellow">${escapeHtml(b.title)}</td>
-                                <td class="py-3 px-4 text-xs text-slate-400">${escapeHtml(b.link)}</td>
-                                <td class="py-3 px-4 text-xs">${b.priority}</td>
-                                <td class="py-3 px-4 text-xs"><button onclick="deleteBannerCMS('${b._id}')" class="text-rose-500 hover:text-rose-400 transition-colors"><i class="fa-solid fa-trash-can"></i></button></td>
+                                <td class="py-3 px-2 text-xs font-bold text-white"><img src="${escapeHtml(b.image || '')}" class="w-12 h-8 object-cover rounded border border-brand-gray"></td>
+                                <td class="py-3 px-2 text-xs font-semibold text-brand-yellow">${escapeHtml(b.title)}</td>
+                                <td class="py-3 px-2 text-[10px] text-slate-300 font-mono">${escapeHtml(b.linkType)}: ${escapeHtml(b.linkValue)}</td>
+                                <td class="py-3 px-2 text-xs text-center">${b.priority}</td>
+                                <td class="py-3 px-2 text-xs text-center"><span class="px-1.5 py-0.5 rounded text-[9px] font-bold ${b.isActive ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-slate-500/20 text-slate-400'}">${b.isActive ? 'Active' : 'Disabled'}</span></td>
+                                <td class="py-3 px-2 text-xs text-center"><button onclick="deleteBannerCMS(${idx}, '${escapeHtml(b.id || '')}')" class="text-rose-500 hover:text-rose-400 transition-colors"><i class="fa-solid fa-trash-can"></i></button></td>
                             </tr>
                         `;
                     });
@@ -3567,26 +3620,30 @@
                                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div>
                                         <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Banner Title</label>
-                                        <input type="text" id="banner-title" class="w-full px-4 py-3 rounded-lg border border-brand-gray text-sm focus:outline-none focus:ring-1 focus:ring-brand-yellow bg-brand-dark text-white placeholder-slate-500" placeholder="e.g. 50% Off First Ride" required>
+                                        <input type="text" id="banner-title" class="w-full px-4 py-3 rounded-lg border border-brand-gray text-sm focus:outline-none focus:ring-1 focus:ring-brand-yellow bg-brand-dark text-white placeholder-slate-500" placeholder="e.g. Flat 20% OFF on your first ride booking!" required>
                                     </div>
                                     <div>
-                                        <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Banner Subtitle</label>
-                                        <input type="text" id="banner-subtitle" class="w-full px-4 py-3 rounded-lg border border-brand-gray text-sm focus:outline-none focus:ring-1 focus:ring-brand-yellow bg-brand-dark text-white placeholder-slate-500" placeholder="e.g. Indore special promo">
+                                        <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Banner Image URL</label>
+                                        <input type="text" id="banner-image" class="w-full px-4 py-3 rounded-lg border border-brand-gray text-sm focus:outline-none focus:ring-1 focus:ring-brand-yellow bg-brand-dark text-white placeholder-slate-500" placeholder="https://prinsgo.com/welcome_banner.png" required>
                                     </div>
                                 </div>
-                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                     <div>
-                                        <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Deep Link / CTA URL</label>
-                                        <input type="text" id="banner-link" class="w-full px-4 py-3 rounded-lg border border-brand-gray text-sm focus:outline-none focus:ring-1 focus:ring-brand-yellow bg-brand-dark text-white placeholder-slate-500" placeholder="e.g. /promos/first-ride" required>
+                                        <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Link Type</label>
+                                        <select id="banner-link-type" class="w-full px-4 py-3 rounded-lg border border-brand-gray text-sm focus:outline-none focus:ring-1 focus:ring-brand-yellow bg-brand-dark text-white">
+                                            <option value="none">none</option>
+                                            <option value="url">url</option>
+                                            <option value="screen">screen</option>
+                                        </select>
                                     </div>
                                     <div>
-                                        <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Priority Order (High = 1)</label>
-                                        <input type="number" id="banner-priority" class="w-full px-4 py-3 rounded-lg border border-brand-gray text-sm focus:outline-none focus:ring-1 focus:ring-brand-yellow bg-brand-dark text-white placeholder-slate-500" value="1" required>
+                                        <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Link Value / Promo Code</label>
+                                        <input type="text" id="banner-link-value" class="w-full px-4 py-3 rounded-lg border border-brand-gray text-sm focus:outline-none focus:ring-1 focus:ring-brand-yellow bg-brand-dark text-white placeholder-slate-500" placeholder="e.g. PRINSGO20">
                                     </div>
-                                </div>
-                                <div>
-                                    <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Banner Image URL</label>
-                                    <input type="text" id="banner-image" class="w-full px-4 py-3 rounded-lg border border-brand-gray text-sm focus:outline-none focus:ring-1 focus:ring-brand-yellow bg-brand-dark text-white placeholder-slate-500" placeholder="https://images.unsplash.com/..." required>
+                                    <div>
+                                        <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Priority Order (0 = First)</label>
+                                        <input type="number" id="banner-priority" class="w-full px-4 py-3 rounded-lg border border-brand-gray text-sm focus:outline-none focus:ring-1 focus:ring-brand-yellow bg-brand-dark text-white placeholder-slate-500" value="0" required>
+                                    </div>
                                 </div>
 
                                 <button type="submit" class="px-5 py-3 text-xs font-bold uppercase bg-brand-yellow hover:bg-yellow-400 text-brand-dark rounded-lg transition-all-300">
@@ -3597,16 +3654,17 @@
 
                         <!-- Right List -->
                         <div class="bg-brand-card p-6 rounded-2xl border border-brand-gray space-y-4">
-                            <h3 class="text-sm font-bold text-white uppercase tracking-wider">Active Promo Banners</h3>
+                            <h3 class="text-sm font-bold text-white uppercase tracking-wider">Active Live Banners</h3>
                             <div class="overflow-x-auto">
                                 <table class="w-full text-left border-collapse">
                                     <thead>
-                                        <tr class="border-b border-brand-gray text-slate-400 text-[10px] uppercase">
+                                        <tr class="border-b border-brand-gray text-slate-400 text-[9px] uppercase">
                                             <th class="py-2 px-1">Img</th>
                                             <th class="py-2 px-1">Title</th>
-                                            <th class="py-2 px-1">CTA</th>
-                                            <th class="py-2 px-1">Pri</th>
-                                            <th class="py-2 px-1">Del</th>
+                                            <th class="py-2 px-1">Target</th>
+                                            <th class="py-2 px-1 text-center">Ord</th>
+                                            <th class="py-2 px-1 text-center">Status</th>
+                                            <th class="py-2 px-1 text-center">Del</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -3624,19 +3682,50 @@
 
         async function submitBannerForm() {
             const title = document.getElementById('banner-title').value.trim();
-            const link = document.getElementById('banner-link').value.trim();
-            const priority = parseInt(document.getElementById('banner-priority').value);
-            const image = document.getElementById('banner-image').value.trim();
+            const imageUrl = document.getElementById('banner-image').value.trim();
+            const linkType = document.getElementById('banner-link-type').value;
+            const linkValue = document.getElementById('banner-link-value').value.trim();
+            const order = parseInt(document.getElementById('banner-priority').value);
 
-            if (!title || !link || !image || isNaN(priority)) {
-                showToast("Please fill all fields correctly.", "error");
+            if (!title || !imageUrl || isNaN(order)) {
+                showToast("Please fill required fields correctly.", "error");
                 return;
             }
 
+            const bannerPayload = {
+                title,
+                imageUrl,
+                image: imageUrl,
+                linkType,
+                linkValue,
+                link: linkValue,
+                order,
+                priority: order,
+                isActive: true
+            };
+
             try {
-                await apiFetch('/admin/banners', {
-                    method: 'POST',
-                    body: JSON.stringify({ title, imageUrl: image, linkType: 'url', linkValue: link, order: priority, isActive: true })
+                // Try direct /banners endpoint first if supported by backend
+                try {
+                    await apiFetch('/banners', {
+                        method: 'POST',
+                        body: JSON.stringify(bannerPayload)
+                    });
+                } catch (e) {
+                    console.warn("Direct /banners API POST non-fatal error, syncing via /settings:", e);
+                }
+
+                // Sync with /settings store
+                const res = await apiFetch('/settings');
+                const s = res.settings || {};
+                const list = s.banners_list || s.banners || [];
+                list.push(bannerPayload);
+                s.banners_list = list;
+                s.banners = list;
+
+                await apiFetch('/settings', {
+                    method: 'PUT',
+                    body: JSON.stringify(s)
                 });
                 showToast("New banner successfully published to both Customer and Driver apps.", "success");
                 loadBannersCMS();
@@ -3645,9 +3734,29 @@
             }
         }
 
-        async function deleteBannerCMS(bannerId) {
+        async function deleteBannerCMS(idx, bannerId = null) {
             try {
-                await apiFetch(`/admin/banners/${bannerId}`, { method: 'DELETE' });
+                if (bannerId) {
+                    try {
+                        await apiFetch(`/banners/${bannerId}`, { method: 'DELETE' });
+                    } catch (e) {
+                        console.warn(`Direct /banners/${bannerId} DELETE error, syncing via /settings:`, e);
+                    }
+                }
+
+                const res = await apiFetch('/settings');
+                const s = res.settings || {};
+                const list = s.banners_list || s.banners || [];
+                if (idx >= 0 && idx < list.length) {
+                    list.splice(idx, 1);
+                }
+                s.banners_list = list;
+                s.banners = list;
+
+                await apiFetch('/settings', {
+                    method: 'PUT',
+                    body: JSON.stringify(s)
+                });
                 showToast("Banner deleted successfully.", "success");
                 loadBannersCMS();
             } catch (err) {
@@ -5311,17 +5420,35 @@
                 </div>
             `;
             try {
-                const res = await apiFetch('/settings');
+                const [res, bannersRes] = await Promise.all([
+                    apiFetch('/settings'),
+                    fetch(`${API_BASE}/api/banners`).then(r => r.json()).catch(() => ({ success: false, banners: [] }))
+                ]);
                 const s = res.settings || {};
-                currentCustomerCMS = s.customer_app_cms || [
-                    { id: 'banner_slider', name: 'Banner Slider Widget', enabled: true, title: 'Super Deals Today', subtitle: 'Get flat 20% off on first ride' },
-                    { id: 'hero', name: 'Hero Main Search Bar', enabled: true, title: 'Where can we take you?', subtitle: 'Enter Indore pickup point' },
-                    { id: 'services', name: 'Service categories Grid', enabled: true, title: 'PrinsGo Premium Services', subtitle: 'Rides, Parcels & Intercity Outstations' },
-                    { id: 'quick_actions', name: 'Quick Action Buttons', enabled: true, title: 'Quick Express Actions', subtitle: 'Book in one tap' },
-                    { id: 'wallet_card', name: 'Wallet Account Card', enabled: true, title: 'Digital Ledger Wallet', subtitle: 'Load money instantly' },
-                    { id: 'explore_cities', name: 'Explore Cities Highlights', enabled: true, title: 'Explore Madhya Pradesh', subtitle: 'Indore, Bhedaghat, Amarkantak, Kanha' },
-                    { id: 'referral', name: 'Referral & Earnings widget', enabled: true, title: 'Refer & Earn Gold Coins', subtitle: 'Share code PRINSGO777' }
-                ];
+                const liveBanners = (bannersRes && bannersRes.success && bannersRes.banners) ? bannersRes.banners : [];
+                const firstBannerTitle = liveBanners.length > 0 ? liveBanners[0].title : 'Flat 20% OFF on your first ride booking!';
+                const firstBannerVal = (liveBanners.length > 0 && liveBanners[0].linkValue) ? liveBanners[0].linkValue : 'PRINSGO20';
+
+                if (s.customer_app_cms && Array.isArray(s.customer_app_cms)) {
+                    currentCustomerCMS = s.customer_app_cms;
+                    const bannerWidget = currentCustomerCMS.find(i => i.id === 'banner_slider');
+                    if (bannerWidget && liveBanners.length > 0) {
+                        bannerWidget.title = liveBanners[0].title;
+                        if (liveBanners[0].linkValue) {
+                            bannerWidget.subtitle = `Use Promo Code ${liveBanners[0].linkValue}`;
+                        }
+                    }
+                } else {
+                    currentCustomerCMS = [
+                        { id: 'banner_slider', name: 'Banner Slider Widget', enabled: true, title: firstBannerTitle, subtitle: `Use Promo Code ${firstBannerVal}` },
+                        { id: 'hero', name: 'Hero Main Search Bar', enabled: true, title: 'Where can we take you?', subtitle: 'Enter Indore pickup point' },
+                        { id: 'services', name: 'Service categories Grid', enabled: true, title: 'PrinsGo Premium Services', subtitle: 'Rides, Parcels & Intercity Outstations' },
+                        { id: 'quick_actions', name: 'Quick Action Buttons', enabled: true, title: 'Quick Express Actions', subtitle: 'Book in one tap' },
+                        { id: 'wallet_card', name: 'Wallet Account Card', enabled: true, title: 'Digital Ledger Wallet', subtitle: 'Load money instantly' },
+                        { id: 'explore_cities', name: 'Explore Cities Highlights', enabled: true, title: 'Explore Madhya Pradesh', subtitle: 'Indore, Bhedaghat, Amarkantak, Kanha' },
+                        { id: 'referral', name: 'Referral & Earnings widget', enabled: true, title: 'Refer & Earn Gold Coins', subtitle: 'Share code PRINSGO777' }
+                    ];
+                }
                 renderCustomerCMS();
             } catch (err) {
                 root.innerHTML = `<div class="bg-rose-500/10 border border-rose-500/20 p-6 rounded-2xl text-center text-xs font-bold text-rose-400 max-w-md mx-auto mt-12">${err.message}</div>`;
@@ -5539,6 +5666,65 @@
                 const s = sRes.settings || {};
 
                 s.customer_app_cms = currentCustomerCMS;
+
+                // Also sync banner_slider widget edit to live banner endpoints
+                const bannerWidget = currentCustomerCMS.find(i => i.id === 'banner_slider');
+                if (bannerWidget) {
+                    const bannerTitle = bannerWidget.title;
+                    let linkVal = bannerWidget.subtitle || '';
+                    if (linkVal.includes('Use Promo Code ')) {
+                        linkVal = linkVal.replace('Use Promo Code ', '').trim();
+                    }
+
+                    // Fetch current live banners to see if there is an existing banner ID
+                    const bannersRes = await fetch(`${API_BASE}/api/banners`).then(r => r.json()).catch(() => ({ success: false, banners: [] }));
+                    const liveBanners = (bannersRes && bannersRes.success && bannersRes.banners) ? bannersRes.banners : [];
+
+                    const bannerPayload = {
+                        title: bannerTitle,
+                        imageUrl: (liveBanners.length > 0 && liveBanners[0].imageUrl) ? liveBanners[0].imageUrl : 'https://prinsgo.com/welcome_banner.png',
+                        image: (liveBanners.length > 0 && liveBanners[0].imageUrl) ? liveBanners[0].imageUrl : 'https://prinsgo.com/welcome_banner.png',
+                        linkType: (liveBanners.length > 0 && liveBanners[0].linkType) ? liveBanners[0].linkType : 'none',
+                        linkValue: linkVal,
+                        link: linkVal,
+                        order: 0,
+                        priority: 0,
+                        isActive: true
+                    };
+
+                    if (liveBanners.length > 0 && liveBanners[0]._id) {
+                        const bannerId = liveBanners[0]._id;
+                        try {
+                            await apiFetch(`/banners/${bannerId}`, {
+                                method: 'PUT',
+                                body: JSON.stringify(bannerPayload)
+                            });
+                        } catch (e) {
+                            console.warn(`Direct /banners/${bannerId} PUT error, syncing via /settings:`, e);
+                        }
+                    } else {
+                        try {
+                            await apiFetch('/banners', {
+                                method: 'POST',
+                                body: JSON.stringify(bannerPayload)
+                            });
+                        } catch (e) {
+                            console.warn("Direct /banners POST error, syncing via /settings:", e);
+                        }
+                    }
+
+                    // Sync with s.banners_list and s.banners in settings
+                    const list = s.banners_list || s.banners || [];
+                    if (list.length > 0) {
+                        list[0].title = bannerTitle;
+                        list[0].linkValue = linkVal;
+                        list[0].link = linkVal;
+                    } else {
+                        list.push(bannerPayload);
+                    }
+                    s.banners_list = list;
+                    s.banners = list;
+                }
 
                 await apiFetch('/settings', {
                     method: 'PUT',
