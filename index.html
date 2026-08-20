@@ -3538,9 +3538,8 @@
         async function loadBannersCMS() {
             const root = document.getElementById('content-container');
             try {
-                const res = await apiFetch('/settings');
-                const s = res.settings || {};
-                const list = s.banners_list || [];
+                const res = await apiFetch('/admin/banners');
+                const list = res.banners || [];
 
                 let bannerRows = '';
                 if (list.length === 0) {
@@ -3553,7 +3552,7 @@
                                 <td class="py-3 px-4 text-xs font-semibold text-brand-yellow">${escapeHtml(b.title)}</td>
                                 <td class="py-3 px-4 text-xs text-slate-400">${escapeHtml(b.link)}</td>
                                 <td class="py-3 px-4 text-xs">${b.priority}</td>
-                                <td class="py-3 px-4 text-xs"><button onclick="deleteBannerCMS(${idx})" class="text-rose-500 hover:text-rose-400 transition-colors"><i class="fa-solid fa-trash-can"></i></button></td>
+                                <td class="py-3 px-4 text-xs"><button onclick="deleteBannerCMS('${b._id}')" class="text-rose-500 hover:text-rose-400 transition-colors"><i class="fa-solid fa-trash-can"></i></button></td>
                             </tr>
                         `;
                     });
@@ -3625,7 +3624,6 @@
 
         async function submitBannerForm() {
             const title = document.getElementById('banner-title').value.trim();
-            const subtitle = document.getElementById('banner-subtitle').value.trim();
             const link = document.getElementById('banner-link').value.trim();
             const priority = parseInt(document.getElementById('banner-priority').value);
             const image = document.getElementById('banner-image').value.trim();
@@ -3636,15 +3634,9 @@
             }
 
             try {
-                const res = await apiFetch('/settings');
-                const s = res.settings || {};
-                const list = s.banners_list || [];
-                list.push({ title, subtitle, link, priority, image });
-                s.banners_list = list;
-
-                await apiFetch('/settings', {
-                    method: 'PUT',
-                    body: JSON.stringify(s)
+                await apiFetch('/admin/banners', {
+                    method: 'POST',
+                    body: JSON.stringify({ title, imageUrl: image, linkType: 'url', linkValue: link, order: priority, isActive: true })
                 });
                 showToast("New banner successfully published to both Customer and Driver apps.", "success");
                 loadBannersCMS();
@@ -3653,18 +3645,9 @@
             }
         }
 
-        async function deleteBannerCMS(idx) {
+        async function deleteBannerCMS(bannerId) {
             try {
-                const res = await apiFetch('/settings');
-                const s = res.settings || {};
-                const list = s.banners_list || [];
-                list.splice(idx, 1);
-                s.banners_list = list;
-
-                await apiFetch('/settings', {
-                    method: 'PUT',
-                    body: JSON.stringify(s)
-                });
+                await apiFetch(`/admin/banners/${bannerId}`, { method: 'DELETE' });
                 showToast("Banner deleted successfully.", "success");
                 loadBannersCMS();
             } catch (err) {
