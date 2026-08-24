@@ -2511,10 +2511,15 @@
             try {
                 const res = await apiFetch('/settings');
                 const s = res.settings || {};
-                const faqs = s.faq_articles || [
-                    { q: 'How do I top up my wallet?', a: 'Go to Wallet > Load Money and pay via UPI instantly.' },
-                    { q: 'How do I apply for KYC verification?', a: 'Upload Aadhaar, RC and Driving License in the driver app.' }
-                ];
+                let faqs = s.faq_articles;
+                if (!faqs || !Array.isArray(faqs) || faqs.length === 0) {
+                    faqs = [
+                        { q: 'How do I top up my wallet?', a: 'Go to Wallet > Load Money and pay via UPI instantly.' },
+                        { q: 'How do I apply for KYC verification?', a: 'Upload Aadhaar, RC and Driving License in the driver app.' }
+                    ];
+                    s.faq_articles = faqs;
+                    await apiFetch('/settings', { method: 'PUT', body: JSON.stringify(s) }).catch(e => console.warn('Seed error', e));
+                }
 
                 let faqHtml = '';
                 faqs.forEach((f, idx) => {
@@ -2621,7 +2626,12 @@
             try {
                 const res = await apiFetch('/settings');
                 const s = res.settings || {};
-                const content = s[key] || `This is the default starting draft of the ${label}. Please edit and publish your text content directly from the editor below.`;
+                let content = s[key];
+                if (!content) {
+                    content = `This is the default starting draft of the ${label}. Please edit and publish your text content directly from the editor below.`;
+                    s[key] = content;
+                    await apiFetch('/settings', { method: 'PUT', body: JSON.stringify(s) }).catch(e => console.warn('Seed error', e));
+                }
 
                 // If loading privacy policy, render advanced Privacy Management Console
                 if (key === 'privacy_policy') {
@@ -3342,7 +3352,15 @@
             try {
                 const res = await apiFetch('/settings');
                 const s = res.settings || {};
-                const coupons = s.coupons_list || [];
+                let coupons = s.coupons_list;
+                if (!coupons || coupons.length === 0) {
+                    coupons = [
+                        { code: 'WELCOME50', type: 'percentage', value: 50, limit: 100, expiry: '2025-12-31', city: 'All Cities', firstRideOnly: true },
+                        { code: 'FESTIVE20', type: 'percentage', value: 20, limit: 50, expiry: '2025-10-31', city: 'All Cities', firstRideOnly: false }
+                    ];
+                    s.coupons_list = coupons;
+                    await apiFetch('/settings', { method: 'PUT', body: JSON.stringify(s) }).catch(e => console.warn('Seed error', e));
+                }
 
                 let couponRows = '';
                 if (coupons.length === 0) {
@@ -3581,7 +3599,10 @@
                 if (list.length === 0) {
                     const res = await apiFetch('/settings');
                     const s = res.settings || {};
-                    const rawList = s.banners_list || s.banners || [];
+                    let rawList = s.banners_list || s.banners;
+                    if (!rawList || rawList.length === 0) {
+                        rawList = [];
+                    }
                     list = rawList.map((b, idx) => ({
                         id: b.id || b._id || idx,
                         title: b.title || 'Untitled Banner',
@@ -3769,11 +3790,16 @@
             try {
                 const res = await apiFetch('/settings');
                 const s = res.settings || {};
-                const list = s.explore_cities_list || [
-                    { name: 'Indore', active: true, image: 'https://images.unsplash.com/photo-1595777457583-95e059d581b8?w=200', desc: 'Financial capital of Madhya Pradesh' },
-                    { name: 'Amarkantak', active: true, image: 'https://images.unsplash.com/photo-1612457813264-500b1ff33742?w=200', desc: 'Source of Narmada River' },
-                    { name: 'Bhedaghat', active: true, image: 'https://images.unsplash.com/photo-1601049541289-9b1b7bbbfe19?w=200', desc: 'Marble rocks and Dhuandhar falls' }
-                ];
+                let list = s.explore_cities_list;
+                if (!list || list.length === 0) {
+                    list = [
+                        { name: 'Indore', active: true, image: 'https://images.unsplash.com/photo-1595777457583-95e059d581b8?w=200', desc: 'Financial capital of Madhya Pradesh' },
+                        { name: 'Amarkantak', active: true, image: 'https://images.unsplash.com/photo-1612457813264-500b1ff33742?w=200', desc: 'Source of Narmada River' },
+                        { name: 'Bhedaghat', active: true, image: 'https://images.unsplash.com/photo-1601049541289-9b1b7bbbfe19?w=200', desc: 'Marble rocks and Dhuandhar falls' }
+                    ];
+                    s.explore_cities_list = list;
+                    await apiFetch('/settings', { method: 'PUT', body: JSON.stringify(s) }).catch(e => console.warn('Seed error', e));
+                }
 
                 let cityCards = '';
                 list.forEach((city, index) => {
@@ -3908,14 +3934,19 @@
             try {
                 const res = await apiFetch('/settings');
                 const s = res.settings || {};
-                const links = s.social_links || {
-                    facebook: { url: 'https://facebook.com/prinsgo', active: true },
-                    instagram: { url: 'https://instagram.com/prinsgo', active: true },
-                    youtube: { url: 'https://youtube.com/prinsgo', active: true },
-                    twitter: { url: 'https://twitter.com/prinsgo', active: true },
-                    linkedin: { url: 'https://linkedin.com/company/prinsgo', active: true },
-                    whatsapp: { url: 'https://wa.me/919999999999', active: true }
-                };
+                let links = s.social_links;
+                if (!links) {
+                    links = {
+                        facebook: { url: 'https://facebook.com/prinsgo', active: true },
+                        instagram: { url: 'https://instagram.com/prinsgo', active: true },
+                        youtube: { url: 'https://youtube.com/prinsgo', active: true },
+                        twitter: { url: 'https://twitter.com/prinsgo', active: true },
+                        linkedin: { url: 'https://linkedin.com/company/prinsgo', active: true },
+                        whatsapp: { url: 'https://wa.me/919999999999', active: true }
+                    };
+                    s.social_links = links;
+                    await apiFetch('/settings', { method: 'PUT', body: JSON.stringify(s) }).catch(e => console.warn('Seed error', e));
+                }
 
                 root.innerHTML = `
                     <div class="max-w-2xl mx-auto bg-brand-card p-6 rounded-2xl border border-brand-gray space-y-6">
@@ -4328,11 +4359,16 @@
             try {
                 const res = await apiFetch('/settings');
                 const s = res.settings || {};
-                const providers = s.notification_providers || {
-                    sms: { enabled: false, name: 'Twilio', accountSid: '', authToken: '', senderId: 'PRNSGO' },
-                    email: { enabled: false, name: 'SendGrid', apiKey: '', senderEmail: 'no-reply@prinsgo.com' },
-                    whatsapp: { enabled: false, name: 'Meta Cloud API', phoneId: '', accessToken: '' }
-                };
+                let providers = s.notification_providers;
+                if (!providers) {
+                    providers = {
+                        sms: { enabled: false, name: 'Twilio', accountSid: '', authToken: '', senderId: 'PRNSGO' },
+                        email: { enabled: false, name: 'SendGrid', apiKey: '', senderEmail: 'no-reply@prinsgo.com' },
+                        whatsapp: { enabled: false, name: 'Meta Cloud API', phoneId: '', accessToken: '' }
+                    };
+                    s.notification_providers = providers;
+                    await apiFetch('/settings', { method: 'PUT', body: JSON.stringify(s) }).catch(e => console.warn('Seed error', e));
+                }
 
                 root.innerHTML = `
                     <div class="space-y-6">
@@ -5750,13 +5786,18 @@
             try {
                 const res = await apiFetch('/settings');
                 const s = res.settings || {};
-                currentDriverCMS = s.driver_app_cms || [
-                    { id: 'status_bar', name: 'Online / Offline Shift Toggle', enabled: true, title: 'Duty Status Selector', subtitle: 'Toggle online to receive nearby ride bookings' },
-                    { id: 'earnings_widget', name: 'Today\'s Earnings Summary', enabled: true, title: 'Daily Net Income', subtitle: '₹1,560.00 earned today from rides' },
-                    { id: 'active_request', name: 'Incoming Booking Card', enabled: true, title: 'Active Live Request Queue', subtitle: 'Awaiting new requests from Indore zone' },
-                    { id: 'incentives', name: 'Daily Target Incentives Card', enabled: true, title: 'Driver Rewards & Bonuses', subtitle: 'Complete 10 rides to claim ₹250 bonus' },
-                    { id: 'quick_navigation', name: 'Quick Navigation Actions', enabled: true, title: 'Central City Maps Navigation', subtitle: 'Indore, Bhopal municipal limits mapping' }
-                ];
+                currentDriverCMS = s.driver_app_cms;
+                if (!currentDriverCMS || !Array.isArray(currentDriverCMS) || currentDriverCMS.length === 0) {
+                    currentDriverCMS = [
+                        { id: 'status_bar', name: 'Online / Offline Shift Toggle', enabled: true, title: 'Duty Status Selector', subtitle: 'Toggle online to receive nearby ride bookings' },
+                        { id: 'earnings_widget', name: 'Today\'s Earnings Summary', enabled: true, title: 'Daily Net Income', subtitle: '₹1,560.00 earned today from rides' },
+                        { id: 'active_request', name: 'Incoming Booking Card', enabled: true, title: 'Active Live Request Queue', subtitle: 'Awaiting new requests from Indore zone' },
+                        { id: 'incentives', name: 'Daily Target Incentives Card', enabled: true, title: 'Driver Rewards & Bonuses', subtitle: 'Complete 10 rides to claim ₹250 bonus' },
+                        { id: 'quick_navigation', name: 'Quick Navigation Actions', enabled: true, title: 'Central City Maps Navigation', subtitle: 'Indore, Bhopal municipal limits mapping' }
+                    ];
+                    s.driver_app_cms = currentDriverCMS;
+                    await apiFetch('/settings', { method: 'PUT', body: JSON.stringify(s) }).catch(e => console.warn('Seed error', e));
+                }
                 renderDriverCMS();
             } catch (err) {
                 root.innerHTML = `<div class="bg-rose-500/10 border border-rose-500/20 p-6 rounded-2xl text-center text-xs font-bold text-rose-400 max-w-md mx-auto mt-12">${err.message}</div>`;
