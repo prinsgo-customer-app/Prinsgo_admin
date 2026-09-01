@@ -670,6 +670,7 @@
                     { id: 'rides', title: 'Ride Management', icon: 'fa-taxi' },
                     { id: 'parcels', title: 'Parcel Management', icon: 'fa-box-open' },
                     { id: 'drivers', title: 'Driver Directory', icon: 'fa-id-card' },
+                    { id: 'workers', title: 'Workers Directory', icon: 'fa-hard-hat' },
                     { id: 'customers', title: 'Customer Profile Center', icon: 'fa-users' },
                     { id: 'kyc', title: 'KYC & Documents', icon: 'fa-user-check' },
                     { id: 'sos', title: 'SOS & Emergency', icon: 'fa-circle-exclamation' }
@@ -1018,6 +1019,7 @@
             else if (page === 'rides') loadRides();
             else if (page === 'parcels') loadParcels();
             else if (page === 'drivers') loadDrivers();
+            else if (page === 'workers') loadWorkers();
             else if (page === 'customers') loadCustomers();
             else if (page === 'kyc') loadKYC();
             else if (page === 'sos') loadSOS();
@@ -1800,6 +1802,118 @@
             }
         }
 
+        let workerPage = 1;
+        let workerStatusFilter = '';
+        function setWorkerFilter(st) {
+            workerStatusFilter = st;
+            loadWorkers(1);
+        }
+
+        async function loadWorkers(page = 1) {
+            workerPage = page;
+            const root = document.getElementById('content-container');
+            const searchVal = document.getElementById('worker-search')?.value || '';
+
+            // NOTE: The required backend API endpoint '/api/admin/workers' is currently missing or inaccessible.
+            // DO NOT create mock APIs or dummy data as per production guidelines.
+            // This UI renders the structure but displays a clear error/empty state regarding the missing API dependency.
+
+            let toolbarHtml = `
+                <div class="flex flex-col sm:flex-row gap-4 justify-between items-center mb-6">
+                    <div class="relative w-full sm:w-80">
+                        <input id="worker-search" type="text" onkeyup="if(event.key==='Enter') loadWorkers(1)" class="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-yellow text-sm bg-white" placeholder="Search worker name or phone..." value="${escapeHtml(searchVal)}">
+                        <span class="absolute left-3.5 top-2.5 text-slate-400"><i class="fa-solid fa-magnifying-glass text-sm"></i></span>
+                    </div>
+                    <div class="flex flex-wrap gap-2 w-full sm:w-auto">
+                        ${['', 'pending', 'approved', 'rejected', 'suspended'].map(st => `
+                            <button onclick="setWorkerFilter('${st}')" class="px-3 py-1.5 rounded-lg text-xs font-bold uppercase transition-all-300 ${workerStatusFilter === st ? 'bg-brand-dark text-brand-yellow' : 'bg-white text-slate-500 hover:bg-slate-100 border border-slate-200'}">
+                                ${st || 'All'}
+                            </button>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+
+            let tableRows = `
+                <tr>
+                    <td colspan="7" class="text-center py-12 text-slate-400 font-medium">
+                        <i class="fa-solid fa-triangle-exclamation text-amber-500 text-3xl mb-3 block"></i>
+                        Missing Backend Dependency.<br>
+                        The endpoint <code class="bg-slate-100 text-rose-500 px-1 py-0.5 rounded text-xs">/api/admin/workers</code> is currently unavailable.<br>
+                        Workers cannot be loaded until the real backend API is accessible.
+                    </td>
+                </tr>
+            `;
+
+            root.innerHTML = `
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 sm:p-6 mb-6">
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                        <div>
+                            <h2 class="text-lg font-black text-slate-800 uppercase tracking-tight">Workers Directory</h2>
+                            <p class="text-xs text-slate-500 mt-1">Manage platform workers, verification, and statuses.</p>
+                        </div>
+                        <button onclick="loadWorkers()" class="w-full sm:w-auto px-4 py-2 bg-brand-dark text-white rounded-lg text-xs font-bold hover:bg-black transition-all-300 flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-rotate-right"></i> Refresh
+                        </button>
+                    </div>
+                    ${toolbarHtml}
+                    <div class="overflow-x-auto rounded-xl border border-slate-100">
+                        <table class="w-full text-left border-collapse whitespace-nowrap">
+                            <thead>
+                                <tr class="bg-slate-50 text-slate-500 text-[10px] uppercase tracking-wider border-b border-slate-100">
+                                    <th class="py-3 px-4 font-bold">Worker Name</th>
+                                    <th class="py-3 px-4 font-bold">Contact</th>
+                                    <th class="py-3 px-4 font-bold">Category</th>
+                                    <th class="py-3 px-4 font-bold">Wallet</th>
+                                    <th class="py-3 px-4 font-bold">Status</th>
+                                    <th class="py-3 px-4 font-bold">Rating</th>
+                                    <th class="py-3 px-4 font-bold text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${tableRows}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function workerAction(id, action) {
+            // NOTE: The backend endpoint '/api/admin/workers/${id}/${action}' is missing.
+            // DO NOT fake the API call. Display error directly.
+            showToast(`Backend missing: Cannot ${action} worker (API /workers/${id}/${action} unavailable)`, "error");
+        }
+
+        async function viewWorkerDetails(id) {
+            const root = document.getElementById('content-container');
+
+            // NOTE: The required backend API endpoint '/api/admin/workers/${id}' and '/api/admin/workers/${id}/jobs' are missing.
+            // DO NOT create mock APIs or dummy data.
+            // This renders an empty UI state detailing the missing backend connection.
+
+            root.innerHTML = `
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 sm:p-6 mb-6 max-w-4xl mx-auto">
+                    <div class="flex items-center gap-4 mb-6 pb-4 border-b border-slate-100">
+                        <button onclick="loadWorkers(workerPage)" class="w-10 h-10 rounded-lg bg-slate-50 text-slate-500 hover:bg-slate-100 flex items-center justify-center transition-all-300">
+                            <i class="fa-solid fa-arrow-left"></i>
+                        </button>
+                        <div>
+                            <h2 class="text-lg font-black text-slate-800 uppercase tracking-tight">Worker Details & Jobs</h2>
+                            <p class="text-xs text-slate-500">ID: ${escapeHtml(id)}</p>
+                        </div>
+                    </div>
+
+                    <div class="text-center py-12 text-slate-400 font-medium">
+                        <i class="fa-solid fa-triangle-exclamation text-amber-500 text-3xl mb-3 block"></i>
+                        Missing Backend Dependency.<br>
+                        The endpoints <code class="bg-slate-100 text-rose-500 px-1 py-0.5 rounded text-xs">/api/admin/workers/${id}</code><br>and <code class="bg-slate-100 text-rose-500 px-1 py-0.5 rounded text-xs">/api/admin/workers/${id}/jobs</code> are currently unavailable.<br>
+                        Worker profiles and jobs cannot be loaded until the real backend API is accessible.
+                    </div>
+                </div>
+            `;
+        }
+
         let customerPage = 1;
         async function loadCustomers(page = 1) {
             customerPage = page;
@@ -1970,7 +2084,8 @@
                 const res = await apiFetch('/settings');
                 const s = res.settings || {};
                 const flags = s.feature_flags || {
-                    ride_booking: true, parcel_booking: true, maintenance_mode: false,
+                    ride_booking: true, parcel_booking: true, worker_booking: true, worker_categories: true,
+                    maintenance_mode: false,
                     wallet: true, cash_payment: true, upi_payment: true, live_tracking: true,
                     sos: true, referral: true, coupons: true, driver_chat: true, ratings: true
                 };
@@ -2015,7 +2130,7 @@
         }
 
         async function saveFeatureFlags() {
-            const keys = window.currentFeatureFlagsList || ['ride_booking', 'parcel_booking', 'maintenance_mode', 'ride', 'parcel', 'wallet', 'cash_payment', 'upi_payment', 'live_tracking', 'sos', 'referral', 'coupons', 'driver_chat', 'ratings'];
+            const keys = window.currentFeatureFlagsList || ['ride_booking', 'parcel_booking', 'worker_booking', 'worker_categories', 'maintenance_mode', 'ride', 'parcel', 'wallet', 'cash_payment', 'upi_payment', 'live_tracking', 'sos', 'referral', 'coupons', 'driver_chat', 'ratings'];
             const updated = {};
             keys.forEach(k => {
                 const el = document.getElementById(`flag-${k}`);
